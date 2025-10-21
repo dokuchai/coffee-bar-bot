@@ -62,8 +62,8 @@ async def main():
     scheduler.add_job(
         remind_end_shift,
         trigger='cron',
-        hour="*",
-        minute="*",
+        hour="20",
+        minute="30",
         # ---
         #❗️❗️❗️ CHANGE: Pass core and manager instead of middleware ❗️❗️❗️
         # ---
