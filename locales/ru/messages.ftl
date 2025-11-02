@@ -77,6 +77,7 @@ admin_panel_welcome = Добро пожаловать в Админ-панель
 admin_button_report_day = Отчет за сегодня
 admin_button_report_week = Отчет за неделю
 admin_button_report_month = Отчет за месяц
+admin_button_report_prev_month = Отчет за ПРОШЛЫЙ месяц
 admin_button_manual_add = Корректировка часов
 admin_button_delete_user = ☠️ Удалить сотрудника
 admin_no_users_in_db = В базе данных пока нет пользователей.
@@ -89,6 +90,9 @@ admin_summary_report_no_data = Нет данных о сменах за этот
 admin_summary_user_line = { $num }. <b>{ $user_name }</b>: { $total_hours } ч. (Итого: { $total_earnings } RSD)
 admin_summary_role_line = • <i>{ $role_name }</i>: { $hours } ч. ({ $earnings } RSD)
 admin_summary_report_footer_grand_total = <b>ИТОГО ПО КОФЕЙНЕ: { $grand_total_hours } ч. ({ $grand_total_earnings } RSD)</b>
+admin_summary_report_header_prev_month = <b>Сводный отчет за { $month_name }</b>
+admin_summary_prev_month_line = { $num }. <b>{ $user_name }</b> ({ $roles_str }): <b>{ $total_hours } ч.</b> ({ $total_earnings } RSD)
+admin_summary_prev_month_footer = <b>Итоговая зарплата: { $total_salary } RSD</b>
 
 # --- Корректировка (Admin) ---
 admin_select_user_adjust = Выберите сотрудника, которому нужно внести *корректировку* часов:

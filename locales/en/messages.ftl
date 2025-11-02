@@ -77,6 +77,7 @@ admin_panel_welcome = Welcome to the Admin Panel.
 admin_button_report_day = Report for Today
 admin_button_report_week = Weekly Report
 admin_button_report_month = Monthly Report
+admin_button_report_prev_month = Report for PREVIOUS month
 admin_button_manual_add = Adjust Hours
 admin_button_delete_user = ☠️ Delete Employee
 admin_no_users_in_db = There are no users in the database yet.
@@ -89,6 +90,9 @@ admin_summary_report_no_data = No shift data for this period.
 admin_summary_user_line = { $num }. <b>{ $user_name }</b>: { $total_hours } h. (Total: { $total_earnings } RSD)
 admin_summary_role_line = • <i>{ $role_name }</i>: { $hours } h. ({ $earnings } RSD)
 admin_summary_report_footer_grand_total = <b>GRAND TOTAL (ALL STAFF): { $grand_total_hours } h. ({ $grand_total_earnings } RSD)</b>
+admin_summary_report_header_prev_month = <b>Summary Report for { $month_name }</b>
+admin_summary_prev_month_line = { $num }. <b>{ $user_name }</b> ({ $roles_str }): <b>{ $total_hours } h.</b> ({ $total_earnings } RSD)
+admin_summary_prev_month_footer = <b>Grand Total Salary: { $total_salary } RSD</b>
 
 # --- Adjustment (Admin) ---
 admin_select_user_adjust = Select an employee to *adjust* hours for:

@@ -2,12 +2,12 @@
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from aiogram_i18n import I18nContext
-from typing import Optional # Добавим Optional
+from typing import Optional, List
 
 from filters import MagicI18nFilter
-from aiogram.exceptions import TelegramBadRequest # Важно импортировать
+from aiogram.exceptions import TelegramBadRequest
 
 import database as db
 import keyboards as kb
@@ -15,6 +15,15 @@ from states import AdminManualAdd, AdminDeleteUser
 from config import MAX_DAILY_HOURS, BotConfig
 
 router = Router()
+
+MONTH_NAMES_RU = [
+    "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+    "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+]
+MONTH_NAMES_EN = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+]
 
 # --- Главное меню админа ---
 @router.message(MagicI18nFilter("button_admin_panel"))
@@ -43,18 +52,24 @@ async def show_summary_report(callback: CallbackQuery, i18n: I18nContext):
     Формирует и отправляет общий отчет по ВСЕМ сотрудникам, с разбивкой по ролям.
     Отчет за день учитывает ТОЛЬКО 'auto' записи.
     """
-    period = callback.data.split("_")[-1]
+    callback_data = callback.data
+    period = ""
+    if callback_data == "admin_report_day":
+        period = "day"
+    elif callback_data == "admin_report_week":
+        period = "week"
+    elif callback_data == "admin_report_month":
+        period = "month"
+    elif callback_data == "admin_report_prev_month":
+        period = "prev_month"
     today = date.today()
-    header_key = "admin_summary_report_header" # Ключ с подчеркиванием
-    header_args = {}
-    entry_types_filter: Optional[list[str]] = None # Используем Optional
-    start_date: date = today # Инициализация
-    end_date: date = today   # Инициализация
+    header_key = "admin_summary_report_header"
+    entry_types_filter: Optional[list[str]] = None
 
     if period == "day":
         start_date = today
         end_date = today
-        header_key = "admin_summary_report_header_day" # Ключ с подчеркиванием
+        header_key = "admin_summary_report_header_day"
         header_args = {"date": today.isoformat()}
         entry_types_filter = ['auto']
     elif period == "week":
@@ -65,6 +80,18 @@ async def show_summary_report(callback: CallbackQuery, i18n: I18nContext):
         start_date = today.replace(day=1)
         end_date = today
         header_args = {"start_date": start_date.isoformat(), "end_date": end_date.isoformat()}
+    elif period == "prev_month":
+        first_day_current_month = today.replace(day=1)
+        end_date = first_day_current_month - timedelta(days=1)
+        start_date = end_date.replace(day=1)
+
+        header_key = "admin_summary_report_header_prev_month"
+        try:
+            month_name = MONTH_NAMES_RU[start_date.month - 1]
+        except IndexError:
+            month_name = start_date.strftime("%B")
+        header_args = {"month_name": f"{month_name} {start_date.year}"}
+        entry_types_filter = None
     else:
         await callback.answer("Error period", show_alert=True)
         return
@@ -88,37 +115,67 @@ async def show_summary_report(callback: CallbackQuery, i18n: I18nContext):
         header = i18n.get(header_key, **header_args)
         report_lines.append(header)
 
-        # Формируем строки отчета
-        for i, user_data in enumerate(summary_data, 1):
-            user_name = user_data['user_name']
-            total_hours = user_data['total_hours']
-            total_earnings = user_data['total_earnings']
+        if period == "prev_month":
+            for i, user_data in enumerate(summary_data, 1):
+                user_name = user_data['user_name']
+                total_hours = user_data['total_hours']
+                total_earnings = user_data['total_earnings']
+                grand_total_earnings_all += total_earnings
+                roles_list = list(user_data['roles'].keys())
+                if not roles_list:
+                    roles_str = "(неизвестно)"
+                elif len(roles_list) == 1:
+                    roles_str = roles_list[0]
+                else:
+                    roles_str = f"({', '.join(roles_list)})"
 
-            grand_total_hours_all += total_hours
-            grand_total_earnings_all += total_earnings
-
-            user_line = i18n.admin_summary_user_line(
-                num=i,
-                user_name=user_name,
-                total_hours=total_hours,
-                total_earnings=total_earnings
-            )
-            report_lines.append(f"\n{user_line}")
-
-            for role_name, role_data in user_data['roles'].items():
-                role_line = i18n.admin_summary_role_line(
-                    role_name=role_name or "??",
-                    hours=role_data['hours'],
-                    earnings=role_data['earnings']
+                # Формируем строку
+                line = i18n.admin_summary_prev_month_line(
+                    num=i,
+                    user_name=user_name,
+                    roles_str=roles_str,
+                    total_hours=total_hours,
+                    total_earnings=total_earnings
                 )
-                report_lines.append(f"  {role_line}")
+                report_lines.append(line)
 
-        # Формируем итоговую строку
-        footer = i18n.admin_summary_report_footer_grand_total(
-            grand_total_hours=round(grand_total_hours_all, 2),
-            grand_total_earnings=round(grand_total_earnings_all, 2)
-        )
-        report_lines.append(f"\n\n{footer}")
+            # Формируем итоговую строку (только ЗП)
+            footer = i18n.admin_summary_prev_month_footer(  # Новый ключ
+                total_salary=round(grand_total_earnings_all, 2)
+            )
+            report_lines.append(f"\n\n{footer}")
+
+        else:
+            for i, user_data in enumerate(summary_data, 1):
+                user_name = user_data['user_name']
+                total_hours = user_data['total_hours']
+                total_earnings = user_data['total_earnings']
+
+                grand_total_hours_all += total_hours
+                grand_total_earnings_all += total_earnings
+
+                user_line = i18n.admin_summary_user_line(
+                    num=i,
+                    user_name=user_name,
+                    total_hours=total_hours,
+                    total_earnings=total_earnings
+                )
+                report_lines.append(f"\n{user_line}")
+
+                for role_name, role_data in user_data['roles'].items():
+                    role_line = i18n.admin_summary_role_line(
+                        role_name=role_name or "??",
+                        hours=role_data['hours'],
+                        earnings=role_data['earnings']
+                    )
+                    report_lines.append(f"  {role_line}")
+
+            # Итоговая строка (Часы и ЗП)
+            footer = i18n.admin_summary_report_footer_grand_total(
+                grand_total_hours=round(grand_total_hours_all, 2),
+                grand_total_earnings=round(grand_total_earnings_all, 2)
+            )
+            report_lines.append(f"\n\n{footer}")
 
         # Отправляем отчет (оставляем HTML)
         await callback.message.edit_text("\n".join(report_lines))

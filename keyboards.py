@@ -81,6 +81,12 @@ def get_admin_panel_keyboard(i18n: I18nContext) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text=i18n.admin_button_report_week(), callback_data="admin_report_week"),
         InlineKeyboardButton(text=i18n.admin_button_report_month(), callback_data="admin_report_month")
     )
+    builder.row(
+        InlineKeyboardButton(
+            text=i18n.admin_button_report_prev_month(),
+            callback_data="admin_report_prev_month"
+        )
+    )
     builder.row(InlineKeyboardButton(text=i18n.admin_button_manual_add(), callback_data="admin_manual_add"))
     builder.row(InlineKeyboardButton(text=i18n.admin_button_delete_user(), callback_data="admin_delete_start"))
     return builder.as_markup()
