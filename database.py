@@ -7,9 +7,9 @@ DB_NAME = 'coffee_bot.db'
 
 # Роли и ставки
 ROLES_DATA = [
-    (1, 'Помощник повара', 371.0),
+    (1, 'Помощник повара', 337.0),
     (2, 'Повар', 380.5),
-    (3, 'Бариста', 371.0)
+    (3, 'Бариста', 350.0)
 ]
 
 async def init_db():
@@ -54,11 +54,26 @@ async def init_db():
                 start_time INTEGER NOT NULL,
                 end_time INTEGER NOT NULL,
                 hours_worked REAL NOT NULL,
+                rate_at_time REAL,
                 entry_type TEXT NOT NULL DEFAULT 'auto',
                 FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE,
                 FOREIGN KEY (role_id) REFERENCES roles (role_id) ON DELETE SET NULL
             )
         ''')
+
+        async with db.execute("PRAGMA table_info(shifts)") as cursor:
+            columns = [row[1] for row in await cursor.fetchall()]
+            if 'rate_at_time' not in columns:
+                await db.execute("ALTER TABLE shifts ADD COLUMN rate_at_time REAL")
+                # Заполняем ставку для старых записей из текущей таблицы ролей
+                await db.execute('''
+                    UPDATE shifts 
+                    SET rate_at_time = (
+                        SELECT rate FROM roles WHERE roles.role_id = shifts.role_id
+                    )
+                    WHERE rate_at_time IS NULL
+                ''')
+
         # Таблица для записи НАЧАЛА смен (по твоему методу)
         await db.execute('''
             CREATE TABLE IF NOT EXISTS active_shifts (
@@ -70,11 +85,12 @@ async def init_db():
                 FOREIGN KEY (role_id) REFERENCES roles (role_id) ON DELETE CASCADE
             )
         ''')
-        # Заполняем роли
-        await db.executemany(
-            "INSERT OR IGNORE INTO roles (role_id, name, rate) VALUES (?, ?, ?)",
-            ROLES_DATA
-        )
+        # Обновляем или вставляем роли и их ставки (ON CONFLICT для обновления текущих ставок)
+        for role_id, name, rate in ROLES_DATA:
+            await db.execute('''
+                    INSERT INTO roles (role_id, name, rate) VALUES (?, ?, ?)
+                    ON CONFLICT(role_id) DO UPDATE SET rate = excluded.rate, name = excluded.name
+                    ''', (role_id, name, rate))
         await db.commit()
 
 # --- Функции users, roles, user_roles ---
@@ -169,28 +185,38 @@ async def get_user_shifts_for_day(user_id: int, shift_date: date) -> list[tuple[
         ) as cursor:
             return await cursor.fetchall()
 
+# --- Вспомогательная функция для получения текущей ставки роли ---
+async def _get_current_role_rate(role_id: int) -> float:
+    async with aiosqlite.connect(DB_NAME) as db:
+        async with db.execute("SELECT rate FROM roles WHERE role_id = ?", (role_id,)) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else 0.0
+
 # --- Функция add_shift (для ЗАВЕРШЕННЫХ смен) ---
 async def add_shift(user_id: int, role_id: int, start_hour: int, end_hour: int):
     today = date.today().isoformat()
     hours_worked = float(end_hour - start_hour)
+    current_rate = await _get_current_role_rate(role_id)  # Берем ставку на момент записи
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute("PRAGMA foreign_keys = ON")
         await db.execute(
             """INSERT INTO shifts
-               (user_id, role_id, shift_date, start_time, end_time, hours_worked, entry_type)
+               (user_id, role_id, shift_date, start_time, end_time, hours_worked, rate_at_time, entry_type)
                VALUES (?, ?, ?, ?, ?, ?, 'auto')""",
-            (user_id, role_id, today, start_hour, end_hour, hours_worked)
+            (user_id, role_id, today, start_hour, end_hour, hours_worked, current_rate)
         )
         await db.commit()
 
 # --- Функция add_manual_shift ---
 async def add_manual_shift(user_id: int, role_id: int, shift_date_str: str, hours_worked: float):
+    current_rate = await _get_current_role_rate(role_id)  # Берем ставку на момент записи
+
     async with aiosqlite.connect(DB_NAME) as db:
         await db.execute("PRAGMA foreign_keys = ON")
         await db.execute(
-            "INSERT INTO shifts (user_id, role_id, shift_date, hours_worked, entry_type, start_time, end_time) " # Добавим start/end_time = -1
+            "INSERT INTO shifts (user_id, role_id, shift_date, hours_worked, rate_at_time, entry_type, start_time, end_time) " # Добавим start/end_time = -1
             "VALUES (?, ?, ?, ?, 'manual_adjustment', -1, -1)",
-            (user_id, role_id, shift_date_str, hours_worked)
+            (user_id, role_id, shift_date_str, hours_worked, current_rate)
         )
         await db.commit()
 
@@ -204,7 +230,7 @@ async def get_user_shifts_report(user_id: int, start_date: date, end_date: date)
     query = """
         SELECT
             s.shift_date, s.start_time, s.end_time, s.hours_worked, s.entry_type,
-            r.name as role_name, r.rate as role_rate
+            s.rate_at_time, r.name as role_name, r.rate as role_rate
         FROM shifts s
         LEFT JOIN roles r ON s.role_id = r.role_id
         WHERE s.user_id = ? AND s.shift_date BETWEEN ? AND ?
@@ -216,14 +242,14 @@ async def get_user_shifts_report(user_id: int, start_date: date, end_date: date)
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute(query, (user_id, start_date.isoformat(), end_date.isoformat())) as cursor:
             async for row in cursor:
-                shift_date_str, start_hour, end_hour, hours, entry_type, role_name, role_rate = row
+                shift_date_str, start_hour, end_hour, hours, entry_type, rate, role_name = row
                 role_name = role_name or "Неизвестная роль"
-                role_rate = role_rate or 0.0
-                earnings = hours * role_rate
+                rate = rate or 0.0 # Используем ставку ИЗ СМЕНЫ
+                earnings = hours * rate
                 grand_total_hours += hours
                 grand_total_earnings += earnings
                 if role_name not in report_by_role:
-                    report_by_role[role_name] = {'hours': 0.0, 'rate': role_rate, 'earnings': 0.0, 'shifts': []}
+                    report_by_role[role_name] = {'hours': 0.0, 'rate': rate, 'earnings': 0.0, 'shifts': []}
                 report_by_role[role_name]['hours'] += hours
                 report_by_role[role_name]['earnings'] += earnings
                 if entry_type == 'auto':
@@ -251,8 +277,8 @@ async def get_summary_report(start_date: date, end_date: date, entry_types: Opti
         SELECT
             u.first_name AS user_name,
             r.name AS role_name,
-            r.rate AS role_rate,
-            SUM(s.hours_worked) AS role_total_hours
+            SUM(s.hours_worked) AS role_total_hours,
+            SUM(s.hours_worked * s.rate_at_time) AS role_total_earnings
         FROM shifts AS s
         JOIN users AS u ON s.user_id = u.user_id
         LEFT JOIN roles AS r ON s.role_id = r.role_id
@@ -264,25 +290,23 @@ async def get_summary_report(start_date: date, end_date: date, entry_types: Opti
         query += f" AND s.entry_type IN ({placeholders})"
         params.extend(entry_types)
     query += """
-        GROUP BY u.user_id, u.first_name, r.role_id, r.name, r.rate
+        GROUP BY u.user_id, u.first_name, r.role_id, r.name
         ORDER BY u.first_name, r.name
     """
     summary_by_user: Dict[str, Dict] = {}
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute(query, params) as cursor:
             async for row in cursor:
-                user_name, role_name, role_rate, role_total_hours = row
+                user_name, role_name, role_total_hours, role_total_earnings = row
                 role_name = role_name or "Неизвестная роль"
-                role_rate = role_rate or 0.0
-                role_earnings = role_total_hours * role_rate
                 if user_name not in summary_by_user:
                     summary_by_user[user_name] = {'user_name': user_name, 'total_hours': 0.0, 'total_earnings': 0.0, 'roles': {}}
                 summary_by_user[user_name]['total_hours'] += role_total_hours
-                summary_by_user[user_name]['total_earnings'] += role_earnings
+                summary_by_user[user_name]['total_earnings'] += role_total_earnings
                 if role_name not in summary_by_user[user_name]['roles']:
                      summary_by_user[user_name]['roles'][role_name] = {'hours': 0.0, 'earnings': 0.0}
                 summary_by_user[user_name]['roles'][role_name]['hours'] += role_total_hours
-                summary_by_user[user_name]['roles'][role_name]['earnings'] += role_earnings
+                summary_by_user[user_name]['roles'][role_name]['earnings'] += role_total_earnings
     result_list = []
     for user_data in summary_by_user.values():
         user_data['total_hours'] = round(user_data['total_hours'], 2)
