@@ -202,7 +202,7 @@ async def add_shift(user_id: int, role_id: int, start_hour: int, end_hour: int):
         await db.execute(
             """INSERT INTO shifts
                (user_id, role_id, shift_date, start_time, end_time, hours_worked, rate_at_time, entry_type)
-               VALUES (?, ?, ?, ?, ?, ?, 'auto')""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'auto')""",
             (user_id, role_id, today, start_hour, end_hour, hours_worked, current_rate)
         )
         await db.commit()
@@ -215,7 +215,7 @@ async def add_manual_shift(user_id: int, role_id: int, shift_date_str: str, hour
         await db.execute("PRAGMA foreign_keys = ON")
         await db.execute(
             "INSERT INTO shifts (user_id, role_id, shift_date, hours_worked, rate_at_time, entry_type, start_time, end_time) " # Добавим start/end_time = -1
-            "VALUES (?, ?, ?, ?, 'manual_adjustment', -1, -1)",
+            "VALUES (?, ?, ?, ?, ?, 'manual_adjustment', -1, -1)",
             (user_id, role_id, shift_date_str, hours_worked, current_rate)
         )
         await db.commit()
