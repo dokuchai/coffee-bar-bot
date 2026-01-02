@@ -230,7 +230,7 @@ async def get_user_shifts_report(user_id: int, start_date: date, end_date: date)
     query = """
         SELECT
             s.shift_date, s.start_time, s.end_time, s.hours_worked, s.entry_type,
-            s.rate_at_time, r.name as role_name, r.rate as role_rate
+            s.rate_at_time, r.name as role_name
         FROM shifts s
         LEFT JOIN roles r ON s.role_id = r.role_id
         WHERE s.user_id = ? AND s.shift_date BETWEEN ? AND ?
