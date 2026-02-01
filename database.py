@@ -243,7 +243,7 @@ async def get_user_shifts_report(user_id: int, start_date: date, end_date: date)
                         f"      └ {time_display} | {earn} RSD"
                     )
 
-                return total_min, total_money, shifts_list
+    return total_min, total_money, shifts_list
 
 
 async def get_summary_report(start_date: date, end_date: date, entry_types: Optional[List[str]] = None):
