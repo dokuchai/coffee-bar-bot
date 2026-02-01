@@ -199,7 +199,7 @@ async def get_user_shifts_report(user_id: int, start_date: date, end_date: date)
         SELECT s.shift_date, s.start_time, s.end_time, s.minutes_worked, s.rate_at_time, r.name
         FROM shifts s
         LEFT JOIN roles r ON s.role_id = r.role_id
-        WHERE s.user_id = ? AND s.shift_date BETWEEN ? AND ? AND s.end_time IS NOT NULL
+        WHERE s.user_id = ? AND s.shift_date BETWEEN ? AND ?
         ORDER BY s.shift_date ASC, s.start_time ASC
     """
     total_min, total_money, shifts_list = 0, Decimal('0.00'), []
@@ -208,12 +208,20 @@ async def get_user_shifts_report(user_id: int, start_date: date, end_date: date)
             async for row in cursor:
                 s_date, s_t, e_t, mins, rate_str, r_name = row
                 rate = Decimal(rate_str)
-                earn = (Decimal(mins) * rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
-
-                total_min += mins
-                total_money += earn
-
-                time_str = format_minutes_to_str(mins)
+                if e_t is None:
+                    t_start = s_t.split('T')[-1][:5]
+                    # Для активной смены деньги пока 0, а время - "В процессе"
+                    earn = Decimal('0.00')
+                    time_display = "⏳ <b>В смене</b>"
+                    t_range = f"{t_start} - ..."
+                else:
+                    earn = (Decimal(mins) * rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
+                    total_min += mins
+                    total_money += earn
+                    time_display = format_minutes_to_str(mins)
+                    t_start = s_t.split('T')[-1][:5]
+                    t_end = e_t.split('T')[-1][:5]
+                    t_range = f"{t_start} - {t_end}"
                 role_label = r_name if r_name else "???"
 
                 if ":" in s_t:
@@ -222,7 +230,9 @@ async def get_user_shifts_report(user_id: int, start_date: date, end_date: date)
                     t_range = "[Корр.]"
 
                 # Теперь здесь выводится РОЛЬ
-                shifts_list.append(f"📅 {s_date} | {role_label} | {time_str} | {earn} RSD")
+                shifts_list.append(
+                    f"📅 {s_date} | {t_range} | {role_label}\n      └ {time_display} | {earn} RSD"
+                )
 
     return total_min, total_money, shifts_list
 
