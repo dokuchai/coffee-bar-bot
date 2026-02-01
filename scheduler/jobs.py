@@ -29,7 +29,7 @@ async def remind_end_shift(bot: Bot, i18n_core: BaseCore, i18n_manager: BaseMana
         logging.info("Scheduler: No started shifts found.")
         return
 
-    today_str = date.today().isoformat()
+    today_str = db.get_today().isoformat()
     users_to_remind = [info[0] for info in active_shifts_info if info[2] == today_str]
 
     if not users_to_remind:
@@ -79,7 +79,7 @@ async def cron_auto_close_shifts(bot):
         async with conn.execute("SELECT DISTINCT user_id FROM shifts WHERE end_time IS NULL") as c:
             users = await c.fetchall()
 
-    closing_time = datetime.now().replace(hour=20, minute=30, second=0, microsecond=0)
+    closing_time = db.get_now().replace(hour=20, minute=30, second=0, microsecond=0)
 
     for (uid,) in users:
         mins = await db.close_shift(uid, end_dt=closing_time)

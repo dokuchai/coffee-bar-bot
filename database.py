@@ -3,6 +3,20 @@ import aiosqlite
 from datetime import date, datetime, timedelta
 from typing import Optional, List, Tuple, Dict
 from decimal import Decimal, ROUND_HALF_UP
+import pytz
+from datetime import datetime
+
+# Настраиваем часовой пояс
+TZ = pytz.timezone('Europe/Belgrade')
+
+
+def get_now():
+    return datetime.now(TZ)
+
+
+def get_today():
+    return get_now().date()
+
 
 DB_NAME = 'coffee_bot.db'
 
@@ -98,11 +112,11 @@ async def init_db():
 
 async def get_used_role_ids_today(user_id: int) -> List[int]:
     """Возвращает список ID ролей, по которым сегодня уже были ЗАКРЫТЫЕ смены."""
-    today = date.today().isoformat()
+    today = get_today().isoformat()
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute(
-            "SELECT role_id FROM shifts WHERE user_id = ? AND shift_date = ? AND end_time IS NOT NULL",
-            (user_id, today)
+                "SELECT role_id FROM shifts WHERE user_id = ? AND shift_date = ? AND end_time IS NOT NULL",
+                (user_id, today)
         ) as c:
             rows = await c.fetchall()
             return [row[0] for row in rows]
@@ -130,16 +144,16 @@ async def is_shift_active(user_id: int) -> bool:
     """ПРЯМОЙ запрос в базу без вызова других функций."""
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute(
-            "SELECT 1 FROM shifts WHERE user_id = ? AND end_time IS NULL LIMIT 1",
-            (user_id,)
+                "SELECT 1 FROM shifts WHERE user_id = ? AND end_time IS NULL LIMIT 1",
+                (user_id,)
         ) as c:
             res = await c.fetchone()
             return res is not None
 
 
 async def record_shift_start(user_id: int, role_id: int):
-    now_iso = datetime.now().isoformat()
-    today = date.today().isoformat()
+    now_iso = get_now().isoformat()
+    today = get_today().isoformat()
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("SELECT rate FROM roles WHERE role_id = ?", (role_id,)) as rc:
             rate_str = (await rc.fetchone())[0]
@@ -151,7 +165,7 @@ async def record_shift_start(user_id: int, role_id: int):
 
 
 async def close_shift(user_id: int, end_dt: Optional[datetime] = None):
-    if end_dt is None: end_dt = datetime.now()
+    if end_dt is None: end_dt = get_now()
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute(
                 "SELECT shift_id, start_time FROM shifts WHERE user_id = ? AND end_time IS NULL LIMIT 1",
@@ -302,7 +316,7 @@ async def add_manual_adjustment(user_id: int, role_id: int, minutes: int):
             rate_str = (await rc.fetchone())[0]
         await db.execute(
             "INSERT INTO shifts (user_id, role_id, shift_date, start_time, end_time, minutes_worked, rate_at_time, entry_type) VALUES (?, ?, ?, 'manual', 'manual', ?, ?, 'manual_adjustment')",
-            (user_id, role_id, date.today().isoformat(), minutes, rate_str))
+            (user_id, role_id, get_today().isoformat(), minutes, rate_str))
         await db.commit()
 
 
@@ -316,8 +330,8 @@ async def check_user_has_roles(user_id: int) -> bool:
     """Проверяет, привязана ли к пользователю хотя бы одна роль."""
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute(
-            "SELECT 1 FROM user_roles WHERE user_id = ? LIMIT 1",
-            (user_id,)
+                "SELECT 1 FROM user_roles WHERE user_id = ? LIMIT 1",
+                (user_id,)
         ) as cursor:
             res = await cursor.fetchone()
             return res is not None

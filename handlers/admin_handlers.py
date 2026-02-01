@@ -11,6 +11,7 @@ import database as db
 import keyboards as kb
 from states import AdminManualAdd, AdminDeleteUser
 from config import MAX_DAILY_HOURS, BotConfig
+from database import get_today
 
 router = Router()
 
@@ -72,7 +73,7 @@ async def admin_report_detailed(callback: CallbackQuery, i18n: I18nContext):
     # Разбираем: view_rep:period:uid
     _, period, uid = callback.data.split(":")
     uid = int(uid)
-    today = date.today()
+    today = get_today()
 
     # Определение временных рамок
     if period == "day":
@@ -197,7 +198,7 @@ async def manual_add_minutes_entered(message: Message, state: FSMContext, i18n: 
 
     data = await state.get_data()
     uid, rid, uname, rname = data['user_id'], data['role_id'], data['user_name'], data['role_name']
-    today = date.today()
+    today = get_today()
 
     # Сохранение корректировки (в минутах)
     try:

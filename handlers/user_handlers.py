@@ -9,6 +9,7 @@ import database as db
 import keyboards as kb
 from states import UserSetup
 from config import BotConfig
+from database import get_now, get_today
 
 router = Router()
 
@@ -69,7 +70,7 @@ async def setup_finish_roles(callback: CallbackQuery, state: FSMContext, i18n: I
 @router.message(MagicI18nFilter("button_start_shift"))
 async def handle_start(message: Message, i18n: I18nContext, config: BotConfig):
     user_id = message.from_user.id
-    now = datetime.now()
+    now = get_now()
 
     if now.time() < time(8, 30):
         await message.answer(i18n.error_too_early())
@@ -130,7 +131,7 @@ async def process_role_choice(callback: CallbackQuery, i18n: I18nContext, config
     reply_kb = await kb.get_main_menu_keyboard(i18n, user_id, is_admin)
 
     await callback.message.edit_text(
-        f"✅ Смена открыта!\n🎭 Должность: <b>{role_name}</b>\n⏰ Время: {datetime.now().strftime('%H:%M')}",
+        f"✅ Смена открыта!\n🎭 Должность: <b>{role_name}</b>\n⏰ Время: {get_now().strftime('%H:%M')}",
         reply_markup=None
     )
     # Чтобы обновить reply_keyboard внизу, нужно отправить новое сообщение
@@ -168,7 +169,7 @@ async def show_stats_menu(message: Message, i18n: I18nContext):
 async def process_user_stats(callback: CallbackQuery):
     period = callback.data.split(":")[1]
     user_id = callback.from_user.id
-    today = date.today()
+    today = get_today()
 
     if period == "week":
         start_date = today - timedelta(days=today.weekday())
