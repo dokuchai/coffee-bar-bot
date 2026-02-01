@@ -203,38 +203,47 @@ async def get_user_shifts_report(user_id: int, start_date: date, end_date: date)
         ORDER BY s.shift_date ASC, s.start_time ASC
     """
     total_min, total_money, shifts_list = 0, Decimal('0.00'), []
+    current_time = get_now()
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute(query, (user_id, start_date.isoformat(), end_date.isoformat())) as cursor:
             async for row in cursor:
                 s_date, s_t, e_t, mins, rate_str, r_name = row
                 rate = Decimal(rate_str)
+                role_label = r_name if r_name else "???"
+                t_start_str = s_t.split('T')[-1][:5]
                 if e_t is None:
-                    t_start = s_t.split('T')[-1][:5]
-                    # Для активной смены деньги пока 0, а время - "В процессе"
-                    earn = Decimal('0.00')
-                    time_display = "⏳ <b>В смене</b>"
-                    t_range = f"{t_start} - ..."
+                    # СМЕНА ОТКРЫТА ПРЯМО СЕЙЧАС
+                    start_dt = datetime.fromisoformat(s_t)
+                    # Если в базе время без TZ, приводим current_time к naive для расчета
+                    diff = current_time.replace(tzinfo=None) - start_dt.replace(tzinfo=None)
+                    live_mins = int(diff.total_seconds() // 60)
+                    if live_mins < 0: live_mins = 0
+
+                    earn = (Decimal(live_mins) * rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
+                    time_display = format_minutes_to_str(live_mins)
+
+                    # Добавляем в общие итоги (админ видит реальную картину)
+                    total_min += live_mins
+                    total_money += earn
+
+                    shifts_list.append(
+                        f"📅 {s_date} | {t_start_str} - 🟢 | {role_label}\n"
+                        f"      └ ⚡️ <b>В процессе:</b> {time_display} | {earn} RSD"
+                    )
                 else:
+                    # СМЕНА ЗАКРЫТА
                     earn = (Decimal(mins) * rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
                     total_min += mins
                     total_money += earn
+                    t_end_str = e_t.split('T')[-1][:5]
                     time_display = format_minutes_to_str(mins)
-                    t_start = s_t.split('T')[-1][:5]
-                    t_end = e_t.split('T')[-1][:5]
-                    t_range = f"{t_start} - {t_end}"
-                role_label = r_name if r_name else "???"
 
-                # if ":" in s_t:
-                #     t_range = f"{s_t.split('T')[-1][:5]}-{e_t.split('T')[-1][:5]}"
-                # else:
-                #     t_range = "[Корр.]"
+                    shifts_list.append(
+                        f"📅 {s_date} | {t_start_str} - {t_end_str} | {role_label}\n"
+                        f"      └ {time_display} | {earn} RSD"
+                    )
 
-                # Теперь здесь выводится РОЛЬ
-                shifts_list.append(
-                    f"📅 {s_date} | {t_range} | {role_label}\n      └ {time_display} | {earn} RSD"
-                )
-
-    return total_min, total_money, shifts_list
+                return total_min, total_money, shifts_list
 
 
 async def get_summary_report(start_date: date, end_date: date, entry_types: Optional[List[str]] = None):

@@ -115,6 +115,8 @@ async def admin_report_detailed(callback: CallbackQuery, i18n: I18nContext):
     report_lines.extend(shifts)  # Просто добавляем список строк
     report_lines.append("---")
     report_lines.append(f"💰 <b>ИТОГО К ВЫПЛАТЕ: {total_money} RSD</b>")
+    if any("⚡️" in s for s in shifts):
+        report_lines.append("\n🟢 <i>Смена ещё идет, расчет актуален на текущий момент.</i>")
 
     text = "\n".join(report_lines)
 
