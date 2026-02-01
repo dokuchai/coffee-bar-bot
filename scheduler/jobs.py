@@ -1,88 +1,92 @@
 # scheduler/jobs.py
 import logging
-from datetime import date, datetime
-
+from datetime import datetime, time
 import aiosqlite
 from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError, TelegramNotFound
-# ---
-#❗️❗️❗️ CHANGE: Import Core and Manager types ❗️❗️❗️
-# ---
 from aiogram_i18n.cores import BaseCore
 from aiogram_i18n.managers import BaseManager
+
 import database as db
 
 
-# ---
-#❗️❗️❗️ CHANGE: Function signature now accepts core and manager ❗️❗️❗️
-# ---
+# --- 1. Напоминание о завершении смены ---
 async def remind_end_shift(bot: Bot, i18n_core: BaseCore, i18n_manager: BaseManager):
-    """
-    Finds users with recorded shift starts and reminds them to end it.
-    """
-    logging.info(f"Scheduler: Checking started shifts for reminders.")
+    logging.info("Scheduler: Checking started shifts for reminders.")
 
-    # 1. Get users with recorded starts
-    active_shifts_info = await db.get_users_with_recorded_start()  # Gets [(uid, rid, sdate_str), ...]
+    # Получаем список тех, у кого смена не закрыта
+    # Предполагаем, что функция возвращает [(user_id, role_id, start_time_str), ...]
+    active_shifts = await db.get_users_with_active_shifts()
 
-    if not active_shifts_info:
-        logging.info("Scheduler: No started shifts found.")
+    if not active_shifts:
+        logging.info("Scheduler: No active shifts found.")
         return
 
     today_str = db.get_today().isoformat()
-    users_to_remind = [info[0] for info in active_shifts_info if info[2] == today_str]
+
+    # Отбираем только тех, кто начал смену СЕГОДНЯ (чтобы не спамить старыми хвостами)
+    # Предполагаем, что start_time_str — это ISO строка "YYYY-MM-DDTHH:MM:SS"
+    users_to_remind = [s[0] for s in active_shifts if s[2].startswith(today_str)]
 
     if not users_to_remind:
         logging.info("Scheduler: No shifts started TODAY found.")
         return
 
-    logging.info(f"Scheduler: Found {len(users_to_remind)} shifts started today to remind.")
-
-    # 2. Get reminder text using core and manager directly
+    # Получаем текст напоминания (всегда используем локаль по умолчанию,
+    # так как в джобе нет контекста конкретного пользователя)
     try:
-        # ---
-        #❗️❗️❗️ CHANGE: Use core.get() and manager.default_locale ❗️❗️❗️
-        # ---
-        reminder_text = i18n_core.get(
-            "reminder_end_shift",  # Key with underscore
-            i18n_manager.default_locale
-        )
-    except KeyError:
-        reminder_text = "⏰ Напоминание! Пожалуйста, не забудьте завершить текущую смену, нажав 'Записать смену' и выбрав время окончания."
-        logging.error("Scheduler: Key 'reminder_end_shift' not found in .ftl! Using default text.")
-    except Exception as e:
-        reminder_text = "⏰ Напоминание! Пожалуйста, не забудьте завершить текущую смену, нажав 'Записать смену' и выбрав время окончания."
-        logging.error(f"Scheduler: Error getting text from i18n Core: {e}")
+        reminder_text = i18n_core.get("reminder_end_shift", i18n_manager.default_locale)
+    except Exception:
+        reminder_text = "⏰ Напоминание! Пожалуйста, не забудьте завершить текущую смену."
 
-    # 3. Send reminders
     sent_count = 0
-    failed_count = 0
     for user_id in users_to_remind:
         try:
             await bot.send_message(user_id, reminder_text)
             sent_count += 1
-            logging.debug(f"Scheduler: Reminder 'End shift' sent to user {user_id}")
         except (TelegramForbiddenError, TelegramNotFound):
-            logging.warning(f"Scheduler: Failed to send reminder to {user_id} (blocked/not found).")
-            failed_count += 1
+            logging.warning(f"Scheduler: User {user_id} blocked the bot.")
         except Exception as e:
-            logging.error(f"Scheduler: Unknown error sending to {user_id}: {e}")
-            failed_count += 1
+            logging.error(f"Scheduler: Error sending to {user_id}: {e}")
 
-    logging.info(f"Scheduler: Reminders 'End shift' sent to {sent_count} users, failed for {failed_count}.")
+    logging.info(f"Scheduler: Reminders sent to {sent_count} users.")
 
 
-async def cron_auto_close_shifts(bot):
-    # Нам нужен список ID тех, у кого смены открыты
-    import aiosqlite
+# --- 2. Автоматическое закрытие смен ---
+async def cron_auto_close_shifts(bot: Bot, i18n_core: BaseCore, i18n_manager: BaseManager):
+    logging.info("Scheduler: Running auto-close for all active shifts.")
+
+    # 1. Находим всех, у кого не закрыта смена
     async with aiosqlite.connect(db.DB_NAME) as conn:
         async with conn.execute("SELECT DISTINCT user_id FROM shifts WHERE end_time IS NULL") as c:
             users = await c.fetchall()
 
-    closing_time = db.get_now().replace(hour=20, minute=30, second=0, microsecond=0)
+    if not users:
+        logging.info("Scheduler: No shifts to auto-close.")
+        return
+
+    # Устанавливаем время закрытия: сегодня, 20:30 (Белград)
+    # Используем replace(tzinfo=None), чтобы не было конфликта aware/naive при вычитании в БД
+    now_serbia = db.get_now()
+    closing_time = now_serbia.replace(hour=20, minute=30, second=0, microsecond=0, tzinfo=None)
 
     for (uid,) in users:
+        # Мы вызываем функцию закрытия, передавая ей жесткое время 20:30
+        # Обязательно убедись, что db.record_shift_end принимает аргумент end_dt
         mins = await db.close_shift(uid, end_dt=closing_time)
+
         if mins is not None:
-            h, m = divmod(mins, 60)
-            await bot.send_message(uid, f"⏰ Ваша смена была автоматически закрыта в 20:30.\nИтог: {h} ч. {m} м.")
+            time_str = db.format_minutes_to_str(mins)
+
+            # Локализация сообщения об автозакрытии
+            try:
+                msg = i18n_core.get("auto_close_notification", i18n_manager.default_locale, time_str=time_str)
+            except:
+                msg = f"⏰ Ваша смена была автоматически закрыта в 20:30.\nИтог: {time_str}"
+
+            try:
+                await bot.send_message(uid, msg)
+            except Exception as e:
+                logging.error(f"Scheduler: Could not notify user {uid} about auto-close: {e}")
+
+    logging.info(f"Scheduler: Auto-closed shifts for {len(users)} users.")

@@ -425,3 +425,12 @@ async def get_total_summary_report(start_date: date, end_date: date):
                 grand_total_money += current_money
 
     return user_totals, grand_total_mins, grand_total_money
+
+
+# --- Функции для планировщика и логики смен ---
+async def get_users_with_active_shifts():
+    """Возвращает список всех открытых смен: [(user_id, role_id, start_time_str), ...]"""
+    query = "SELECT user_id, role_id, start_time FROM shifts WHERE end_time IS NULL"
+    async with aiosqlite.connect(DB_NAME) as db:
+        async with db.execute(query) as cursor:
+            return await cursor.fetchall()
