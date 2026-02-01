@@ -224,10 +224,10 @@ async def get_user_shifts_report(user_id: int, start_date: date, end_date: date)
                     t_range = f"{t_start} - {t_end}"
                 role_label = r_name if r_name else "???"
 
-                if ":" in s_t:
-                    t_range = f"{s_t.split('T')[-1][:5]}-{e_t.split('T')[-1][:5]}"
-                else:
-                    t_range = "[Корр.]"
+                # if ":" in s_t:
+                #     t_range = f"{s_t.split('T')[-1][:5]}-{e_t.split('T')[-1][:5]}"
+                # else:
+                #     t_range = "[Корр.]"
 
                 # Теперь здесь выводится РОЛЬ
                 shifts_list.append(
