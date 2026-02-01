@@ -8,6 +8,7 @@ from typing import List, Tuple
 import database as db
 
 
+# --- Главное меню (Reply) ---
 async def get_main_menu_keyboard(i18n, user_id, is_admin=False):
     builder = ReplyKeyboardBuilder()
     status = await db.get_shift_status(user_id)
@@ -27,15 +28,7 @@ async def get_main_menu_keyboard(i18n, user_id, is_admin=False):
     return builder.as_markup(resize_keyboard=True)
 
 
-def get_user_stats_keyboard(i18n):
-    builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(text=i18n.stats_button_week(), callback_data="usr_st:week"),
-        InlineKeyboardButton(text=i18n.stats_button_month(), callback_data="usr_st:month")
-    )
-    return builder.as_markup()
-
-
+# --- Выбор роли (Inline) ---
 def get_role_selection_keyboard(
         i18n: I18nContext,
         all_roles: List[Tuple[int, str, float]],
@@ -57,10 +50,9 @@ def get_role_selection_keyboard(
     return builder.as_markup()
 
 
-# --- ОБНОВЛЕННАЯ АДМИН-ПАНЕЛЬ ---
+# --- Админ-панель ---
 def get_admin_panel_keyboard(i18n: I18nContext) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    # Мы меняем callback_data на формат admin_rep:период, чтобы хэндлер понимал, что рисовать список юзеров
     builder.row(
         InlineKeyboardButton(text=i18n.admin_button_report_day(), callback_data="admin_rep:today"),
         InlineKeyboardButton(text=i18n.admin_button_report_week(), callback_data="admin_rep:week")
@@ -69,44 +61,46 @@ def get_admin_panel_keyboard(i18n: I18nContext) -> InlineKeyboardMarkup:
         InlineKeyboardButton(text=i18n.admin_button_report_month(), callback_data="admin_rep:month"),
         InlineKeyboardButton(text=i18n.admin_button_report_prev_month(), callback_data="admin_rep:prev_month")
     )
-    builder.row(InlineKeyboardButton(text=i18n.admin_button_manual_add(), callback_data="admin_manual_adjust"))
+    builder.row(InlineKeyboardButton(text=i18n.admin_button_manual_add(), callback_data="admin_manual_add"))
     builder.row(InlineKeyboardButton(text=i18n.admin_button_delete_user(), callback_data="admin_delete_start"))
     return builder.as_markup()
 
 
-# --- НОВАЯ ФУНКЦИЯ ДЛЯ ВЫБОРА ЮЗЕРА + ОБЩИЙ ИТОГ ---
+# --- ВЫБОР ЮЗЕРА ДЛЯ ОТЧЕТОВ (С кнопкой ОБЩИЙ ИТОГ) ---
 def get_users_report_keyboard(period: str, users: list) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-
-    # 1. Главная кнопка вверху
-    builder.row(InlineKeyboardButton(
-        text="📊 ОБЩИЙ ИТОГ (ВСЕ)",
-        callback_data=f"total_view:{period}"
-    ))
-
-    # 2. Кнопки сотрудников
+    builder.row(InlineKeyboardButton(text="📊 ОБЩИЙ ИТОГ (ВСЕ)", callback_data=f"total_view:{period}"))
     for user_id, first_name in users:
-        builder.row(InlineKeyboardButton(
-            text=first_name,
-            callback_data=f"view_rep:{period}:{user_id}"
-        ))
-
-    # 3. Кнопка назад в админку
+        builder.row(InlineKeyboardButton(text=first_name, callback_data=f"view_rep:{period}:{user_id}"))
     builder.row(InlineKeyboardButton(text="⬅️ Назад", callback_data="admin_panel"))
-
     return builder.as_markup()
 
 
+# --- ВЫБОР ЮЗЕРА ДЛЯ КОРРЕКТИРОВКИ / УДАЛЕНИЯ (Простой список) ---
+def get_user_selection_keyboard(users: list[tuple[int, str]], prefix: str) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    for user_id, first_name in users:
+        builder.row(InlineKeyboardButton(text=first_name, callback_data=f"{prefix}_{user_id}"))
+    builder.row(InlineKeyboardButton(text="⬅️ Назад", callback_data="admin_panel"))
+    return builder.as_markup()
+
+
+# --- Подтверждение удаления ---
 def get_delete_confirmation_keyboard(i18n: I18nContext, user_id_to_delete: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(
-            text=i18n.admin_delete_confirm_yes(),
-            callback_data=f"delete_confirm_yes_{user_id_to_delete}"
-        ),
-        InlineKeyboardButton(
-            text=i18n.admin_delete_confirm_no(),
-            callback_data="delete_confirm_no"
-        )
+        InlineKeyboardButton(text=i18n.admin_delete_confirm_yes(),
+                             callback_data=f"delete_confirm_yes_{user_id_to_delete}"),
+        InlineKeyboardButton(text=i18n.admin_delete_confirm_no(), callback_data="admin_panel")
+    )
+    return builder.as_markup()
+
+
+# --- Статистика пользователя ---
+def get_user_stats_keyboard(i18n):
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text=i18n.stats_button_week(), callback_data="usr_st:week"),
+        InlineKeyboardButton(text=i18n.stats_button_month(), callback_data="usr_st:month")
     )
     return builder.as_markup()

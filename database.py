@@ -165,7 +165,8 @@ async def record_shift_start(user_id: int, role_id: int):
 
 
 async def close_shift(user_id: int, end_dt: Optional[datetime] = None):
-    if end_dt is None: end_dt = get_now()
+    now = get_now()  # Aware datetime (с часовым поясом)
+    now_iso = now.isoformat()
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute(
                 "SELECT shift_id, start_time FROM shifts WHERE user_id = ? AND end_time IS NULL LIMIT 1",
@@ -175,10 +176,16 @@ async def close_shift(user_id: int, end_dt: Optional[datetime] = None):
             if not row: return None
             sid, start_iso = row
             start_dt = datetime.fromisoformat(start_iso)
-            mins = int((end_dt - start_dt).total_seconds() // 60)
-            if mins < 0: mins = 0
-            await db.execute("UPDATE shifts SET end_time = ?, minutes_worked = ? WHERE shift_id = ?",
-                             (end_dt.isoformat(), mins, sid))
+            end_dt_naive = now.replace(tzinfo=None)
+            start_dt_naive = start_dt.replace(tzinfo=None)
+            diff = end_dt_naive - start_dt_naive
+            mins = int(diff.total_seconds() // 60)
+            if mins < 0:
+                mins = 0
+            await db.execute(
+                "UPDATE shifts SET end_time = ?, minutes_worked = ? WHERE user_id = ? AND end_time IS NULL",
+                (now_iso, mins, user_id)
+            )
             await db.commit()
             return mins
 
