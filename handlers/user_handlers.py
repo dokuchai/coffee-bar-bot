@@ -142,7 +142,18 @@ async def process_role_choice(callback: CallbackQuery, i18n: I18nContext, config
 @router.message(MagicI18nFilter("button_end_shift"))
 async def handle_end(message: Message, i18n: I18nContext, config: BotConfig):
     user_id = message.from_user.id
-    mins = await db.close_shift(user_id)
+    result = await db.close_shift(user_id)
+
+    if result:
+        mins, t_start, t_end = result
+        h_str = db.format_minutes_to_str(mins)
+        # Можно использовать i18n или просто f-строку
+        await callback.message.edit_text(
+            f"✅ <b>Смена завершена!</b>\n\n"
+            f"⏰ Время: <code>{t_start}</code> — <code>{t_end}</code>\n"
+            f"⏱ Отработано: <b>{h_str}</b>\n\n"
+            f"Хорошего отдыха! 🙌"
+        )
 
     if mins is None:
         await message.answer("❌ Активных смен не найдено.")
@@ -151,7 +162,10 @@ async def handle_end(message: Message, i18n: I18nContext, config: BotConfig):
     h, m = divmod(mins, 60)
     is_admin = user_id in config.admin_ids
     reply_kb = await kb.get_main_menu_keyboard(i18n, user_id, is_admin)
-    await message.answer(f"🏁 Смена закрыта! Отработано: {h} ч. {m} м.", reply_markup=reply_kb)
+    await message.answer(
+        f"🏁 Смена закрыта! Отработано: {h} ч. {m} м.\n"
+        f"⏰ Время: <code>{t_start}</code> — <code>{t_end}</code>\n", reply_markup=reply_kb
+    )
 
 
 # --- СТАТИСТИКА ПОЛЬЗОВАТЕЛЯ ---

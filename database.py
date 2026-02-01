@@ -173,7 +173,8 @@ async def close_shift(user_id: int, end_dt: Optional[datetime] = None):
                 (user_id,)
         ) as c:
             row = await c.fetchone()
-            if not row: return None
+            if not row:
+                return None
             sid, start_iso = row
             start_dt = datetime.fromisoformat(start_iso)
             end_dt_naive = now.replace(tzinfo=None)
@@ -187,7 +188,9 @@ async def close_shift(user_id: int, end_dt: Optional[datetime] = None):
                 (now_iso, mins, user_id)
             )
             await db.commit()
-            return mins
+            t_start = start_dt.strftime("%H:%M")
+            t_end = now.strftime("%H:%M")
+            return mins, t_start, t_end
 
 
 # --- ОТЧЕТЫ И СТАТИСТИКА ---

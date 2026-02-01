@@ -73,17 +73,17 @@ async def cron_auto_close_shifts(bot: Bot, i18n_core: BaseCore, i18n_manager: Ba
     for (uid,) in users:
         # Мы вызываем функцию закрытия, передавая ей жесткое время 20:30
         # Обязательно убедись, что db.record_shift_end принимает аргумент end_dt
-        mins = await db.close_shift(uid, end_dt=closing_time)
+        result = await db.close_shift(uid, end_dt=closing_time)
+        if result:
+            mins, t_start, t_end = result
+            time_display = db.format_minutes_to_str(mins)
 
-        if mins is not None:
-            time_str = db.format_minutes_to_str(mins)
-
-            # Локализация сообщения об автозакрытии
-            try:
-                msg = i18n_core.get("auto_close_notification", i18n_manager.default_locale, time_str=time_str)
-            except:
-                msg = f"⏰ Ваша смена была автоматически закрыта в 20:30.\nИтог: {time_str}"
-
+            # Текст для автоматического закрытия
+            msg = (
+                f"⏰ <b>Ваша смена была автоматически закрыта!</b>\n"
+                f"Период: <code>{t_start}</code> — <code>20:30</code>\n"
+                f"Итог: <b>{time_display}</b>"
+            )
             try:
                 await bot.send_message(uid, msg)
             except Exception as e:
