@@ -372,3 +372,49 @@ async def check_user_has_roles(user_id: int) -> bool:
         ) as cursor:
             res = await cursor.fetchone()
             return res is not None
+
+
+# database.py
+
+async def get_total_summary_report(start_date: date, end_date: date):
+    """Возвращает общую сумму и время по всем сотрудникам за период."""
+    query = """
+        SELECT u.first_name, s.start_time, s.end_time, s.minutes_worked, s.rate_at_time, s.entry_type
+        FROM shifts s
+        JOIN users u ON s.user_id = u.user_id
+        WHERE s.shift_date BETWEEN ? AND ?
+    """
+
+    user_totals = {}  # { "Имя": {"mins": 0, "money": Decimal} }
+    grand_total_mins = 0
+    grand_total_money = Decimal('0.00')
+    now_naive = get_now().replace(tzinfo=None)
+
+    async with aiosqlite.connect(DB_NAME) as db:
+        async with db.execute(query, (start_date.isoformat(), end_date.isoformat())) as cursor:
+            async for row in cursor:
+                name, s_t, e_t, mins, rate_str, entry_type = row
+                rate = Decimal(rate_str)
+
+                if name not in user_totals:
+                    user_totals[name] = {"mins": 0, "money": Decimal('0.00')}
+
+                # Логика расчета (как в детальном отчете)
+                if e_t is None and entry_type != 'manual':
+                    start_dt = datetime.fromisoformat(s_t).replace(tzinfo=None)
+                    current_mins = int((now_naive - start_dt).total_seconds() // 60)
+                    if current_mins < 0: current_mins = 0
+                else:
+                    current_mins = mins
+
+                current_money = (Decimal(current_mins) * rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
+
+                # Плюсуем сотруднику
+                user_totals[name]["mins"] += current_mins
+                user_totals[name]["money"] += current_money
+
+                # Плюсуем в общий итог
+                grand_total_mins += current_mins
+                grand_total_money += current_money
+
+    return user_totals, grand_total_mins, grand_total_money

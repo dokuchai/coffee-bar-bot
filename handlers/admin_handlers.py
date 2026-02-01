@@ -1,3 +1,5 @@
+# handlers/admin_handlers.py
+
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -10,10 +12,29 @@ from filters import MagicI18nFilter
 import database as db
 import keyboards as kb
 from states import AdminManualAdd, AdminDeleteUser
-from config import MAX_DAILY_HOURS, BotConfig
+from config import BotConfig
 from database import get_today
 
 router = Router()
+
+
+# --- Вспомогательная функция для расчета дат ---
+def get_dates_by_period(period: str):
+    today = get_today()
+    if period == "today":
+        return today, today, "сегодня"
+    elif period == "week":
+        s_date = today - timedelta(days=today.weekday())
+        return s_date, today, "эту неделю"
+    elif period == "month":
+        s_date = today.replace(day=1)
+        return s_date, today, "этот месяц"
+    elif period == "prev_month":
+        first_day_this_month = today.replace(day=1)
+        e_date = first_day_this_month - timedelta(days=1)
+        s_date = e_date.replace(day=1)
+        return s_date, e_date, "прошлый месяц"
+    return today, today, "период"
 
 
 # --- Главное меню админа ---
@@ -25,72 +46,71 @@ async def admin_panel(message: Message, i18n: I18nContext, config: BotConfig):
         username=message.from_user.username,
         first_name=message.from_user.first_name
     )
-    # Показываем инлайн-меню админа
     await message.answer(
         i18n.admin_panel_welcome(),
         reply_markup=kb.get_admin_panel_keyboard(i18n)
     )
 
 
-# --- УНИВЕРСАЛЬНЫЙ ВЫБОР СОТРУДНИКА ДЛЯ ОТЧЕТА ---
-@router.callback_query(F.data.startswith("admin_report_"))
-async def admin_report_select_user(callback: CallbackQuery, i18n: I18nContext):
-    # Извлекаем период: day, week, month, prev_month
-    period = callback.data.replace("admin_report_", "")
+# --- 1. ВЫБОР: ОБЩИЙ ИТОГ ИЛИ СОТРУДНИК ---
+@router.callback_query(F.data.startswith("admin_rep:"))
+async def admin_report_select_type(callback: CallbackQuery, i18n: I18nContext):
+    period = callback.data.split(":")[1]
+    _, _, p_text = get_dates_by_period(period)
 
     users = await db.get_all_users()
     if not users:
         await callback.answer("Сотрудники не найдены", show_alert=True)
         return
 
-    builder = InlineKeyboardBuilder()
-    for uid, name in users:
-        # В callback_data передаем период и ID пользователя
-        builder.row(InlineKeyboardButton(
-            text=name,
-            callback_data=f"view_rep:{period}:{uid}"
-        ))
-
-    builder.row(InlineKeyboardButton(text="⬅️ Назад", callback_data="admin_panel_back"))
-
-    periods_text = {
-        "day": "сегодня",
-        "week": "неделю",
-        "month": "текущий месяц",
-        "prev_month": "прошлый месяц"
-    }
-
+    # Вызываем новую клавиатуру с кнопкой "ОБЩИЙ ИТОГ" вверху
     await callback.message.edit_text(
-        f"📋 Выберите сотрудника для отчета за <b>{periods_text.get(period)}</b>:",
-        reply_markup=builder.as_markup()
+        f"📋 Отчеты за <b>{p_text}</b>.\nВыберите сотрудника или посмотрите общий итог:",
+        reply_markup=kb.get_users_report_keyboard(period, users)
     )
     await callback.answer()
 
 
-# --- ДЕТАЛЬНЫЙ ОТЧЕТ (ВЫВОД) ---
+# --- 2. ОБЩИЙ ИТОГ ПО ВСЕМ ---
+@router.callback_query(F.data.startswith("total_view:"))
+async def admin_total_report_by_period(callback: CallbackQuery, i18n: I18nContext):
+    period = callback.data.split(":")[1]
+    s_date, e_date, p_name = get_dates_by_period(period)
+
+    user_totals, g_mins, g_money = await db.get_total_summary_report(s_date, e_date)
+
+    if not user_totals:
+        await callback.answer(f"За {p_name} данных нет", show_alert=True)
+        return
+
+    report = [
+        f"🧾 <b>ОБЩИЙ ОТЧЕТ: {p_name.upper()}</b>",
+        f"📅 {s_date} — {e_date}",
+        "---"
+    ]
+
+    for name, data in user_totals.items():
+        h_str = db.format_minutes_to_str(data["mins"])
+        report.append(f"👤 {name}: <b>{h_str}</b> | {data['money']} RSD")
+
+    report.append("---")
+    report.append(f"💰 <b>ИТОГО К ВЫПЛАТЕ: {g_money} RSD</b>")
+
+    # Кнопка возврата к выбору сотрудников того же периода
+    back_kb = InlineKeyboardBuilder()
+    back_kb.button(text="⬅️ Назад к списку", callback_data=f"admin_rep:{period}")
+
+    await callback.message.edit_text("\n".join(report), reply_markup=back_kb.as_markup())
+    await callback.answer()
+
+
+# --- 3. ДЕТАЛЬНЫЙ ОТЧЕТ ПО СОТРУДНИКУ ---
 @router.callback_query(F.data.startswith("view_rep:"))
 async def admin_report_detailed(callback: CallbackQuery, i18n: I18nContext):
-    # Разбираем: view_rep:period:uid
     _, period, uid = callback.data.split(":")
     uid = int(uid)
-    today = get_today()
+    s_date, e_date, _ = get_dates_by_period(period)
 
-    # Определение временных рамок
-    if period == "day":
-        s_date = e_date = today
-    elif period == "week":
-        s_date = today - timedelta(days=today.weekday())
-        e_date = today
-    elif period == "month":
-        s_date = today.replace(day=1)
-        e_date = today
-    elif period == "prev_month":
-        e_date = today.replace(day=1) - timedelta(days=1)
-        s_date = e_date.replace(day=1)
-    else:
-        s_date = e_date = today
-
-    # Вытягиваем данные (shifts — это LIST строк, деньги — Decimal)
     minutes, total_money, shifts = await db.get_user_shifts_report(uid, s_date, e_date)
 
     all_users = await db.get_all_users()
@@ -98,38 +118,41 @@ async def admin_report_detailed(callback: CallbackQuery, i18n: I18nContext):
 
     if not shifts:
         await callback.message.edit_text(
-            f"❌ У <b>{user_name}</b> нет смен за этот период.",
+            f"❌ У <b>{user_name}</b> нет смен за период {s_date} — {e_date}.",
             reply_markup=kb.get_admin_panel_keyboard(i18n)
         )
         return
 
     h_str = db.format_minutes_to_str(minutes)
 
-    # Собираем финальный текст
     report_lines = [
         f"👤 <b>{user_name}</b>",
         f"📅 Период: {s_date} — {e_date}",
         f"⏱ Итого времени: <b>{h_str}</b>",
         "---"
     ]
-    report_lines.extend(shifts)  # Просто добавляем список строк
+    report_lines.extend(shifts)
     report_lines.append("---")
     report_lines.append(f"💰 <b>ИТОГО К ВЫПЛАТЕ: {total_money} RSD</b>")
-    if any("⚡️" in s for s in shifts):
+
+    if any("🟢" in s or "⚡️" in s for s in shifts):
         report_lines.append("\n🟢 <i>Смена ещё идет, расчет актуален на текущий момент.</i>")
 
-    text = "\n".join(report_lines)
+    # Кнопка возврата к списку этого же периода
+    back_kb = InlineKeyboardBuilder()
+    back_kb.button(text="⬅️ К списку сотрудников", callback_data=f"admin_rep:{period}")
 
+    text = "\n".join(report_lines)
     if len(text) > 4000:
         for x in range(0, len(text), 4000):
             await callback.message.answer(text[x:x + 4000])
     else:
-        await callback.message.edit_text(text, reply_markup=kb.get_admin_panel_keyboard(i18n))
+        await callback.message.edit_text(text, reply_markup=back_kb.as_markup())
     await callback.answer()
 
 
-# --- Кнопка "Назад" в админ-панели ---
-@router.callback_query(F.data == "admin_panel_back")
+# --- Кнопка "Назад" в админ-панель (общая) ---
+@router.callback_query(F.data == "admin_panel")
 async def back_to_admin_main(callback: CallbackQuery, i18n: I18nContext):
     await callback.message.edit_text(
         i18n.admin_panel_welcome(),

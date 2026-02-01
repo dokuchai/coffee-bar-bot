@@ -15,11 +15,7 @@ async def get_main_menu_keyboard(i18n, user_id, is_admin=False):
     if status == 'active':
         builder.button(text=i18n.button_end_shift())
     elif status == 'none':
-        # Появится снова, если отработал одну роль, но осталась вторая
         builder.button(text=i18n.button_start_shift())
-    else:
-        # 'finished_all' - кнопок управления сменой нет
-        pass
 
     builder.button(text=i18n.button_my_stats())
     builder.button(text=i18n.button_help())
@@ -61,40 +57,43 @@ def get_role_selection_keyboard(
     return builder.as_markup()
 
 
-def get_stats_period_keyboard(i18n: I18nContext) -> InlineKeyboardMarkup:
-    builder = InlineKeyboardBuilder()
-    builder.add(
-        InlineKeyboardButton(text=i18n.stats_button_week(), callback_data="stats_week"),
-        InlineKeyboardButton(text=i18n.stats_button_month(), callback_data="stats_month")
-    )
-    return builder.as_markup()
-
-
+# --- ОБНОВЛЕННАЯ АДМИН-ПАНЕЛЬ ---
 def get_admin_panel_keyboard(i18n: I18nContext) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+    # Мы меняем callback_data на формат admin_rep:период, чтобы хэндлер понимал, что рисовать список юзеров
     builder.row(
-        InlineKeyboardButton(text=i18n.admin_button_report_day(), callback_data="admin_report_day"),
-        InlineKeyboardButton(text=i18n.admin_button_report_week(), callback_data="admin_report_week"),
-        InlineKeyboardButton(text=i18n.admin_button_report_month(), callback_data="admin_report_month")
+        InlineKeyboardButton(text=i18n.admin_button_report_day(), callback_data="admin_rep:today"),
+        InlineKeyboardButton(text=i18n.admin_button_report_week(), callback_data="admin_rep:week")
     )
     builder.row(
-        InlineKeyboardButton(
-            text=i18n.admin_button_report_prev_month(),
-            callback_data="admin_report_prev_month"
-        )
+        InlineKeyboardButton(text=i18n.admin_button_report_month(), callback_data="admin_rep:month"),
+        InlineKeyboardButton(text=i18n.admin_button_report_prev_month(), callback_data="admin_rep:prev_month")
     )
-    builder.row(InlineKeyboardButton(text=i18n.admin_button_manual_add(), callback_data="admin_manual_add"))
+    builder.row(InlineKeyboardButton(text=i18n.admin_button_manual_add(), callback_data="admin_manual_adjust"))
     builder.row(InlineKeyboardButton(text=i18n.admin_button_delete_user(), callback_data="admin_delete_start"))
     return builder.as_markup()
 
 
-def get_user_selection_keyboard(users: list[tuple[int, str]], prefix: str) -> InlineKeyboardMarkup:
+# --- НОВАЯ ФУНКЦИЯ ДЛЯ ВЫБОРА ЮЗЕРА + ОБЩИЙ ИТОГ ---
+def get_users_report_keyboard(period: str, users: list) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
+
+    # 1. Главная кнопка вверху
+    builder.row(InlineKeyboardButton(
+        text="📊 ОБЩИЙ ИТОГ (ВСЕ)",
+        callback_data=f"total_view:{period}"
+    ))
+
+    # 2. Кнопки сотрудников
     for user_id, first_name in users:
         builder.row(InlineKeyboardButton(
             text=first_name,
-            callback_data=f"{prefix}_{user_id}"
+            callback_data=f"view_rep:{period}:{user_id}"
         ))
+
+    # 3. Кнопка назад в админку
+    builder.row(InlineKeyboardButton(text="⬅️ Назад", callback_data="admin_panel"))
+
     return builder.as_markup()
 
 
