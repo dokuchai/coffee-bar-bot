@@ -196,12 +196,19 @@ def format_minutes_to_str(total_minutes: int) -> str:
 
 async def get_user_shifts_report(user_id: int, start_date: date, end_date: date):
     query = """
-        SELECT s.shift_date, s.start_time, s.end_time, s.minutes_worked, s.rate_at_time, r.name
-        FROM shifts s
-        LEFT JOIN roles r ON s.role_id = r.role_id
-        WHERE s.user_id = ? AND s.shift_date BETWEEN ? AND ?
-        ORDER BY s.shift_date ASC, s.start_time ASC
-    """
+            SELECT 
+                s.shift_date, 
+                s.start_time, 
+                s.end_time, 
+                s.minutes_worked, 
+                s.rate_at_time, 
+                r.name, 
+                s.entry_type
+            FROM shifts s
+            LEFT JOIN roles r ON s.role_id = r.role_id
+            WHERE s.user_id = ? AND s.shift_date BETWEEN ? AND ?
+            ORDER BY s.shift_date ASC, s.start_time ASC
+        """
     total_min, total_money, shifts_list = 0, Decimal('0.00'), []
     current_time = get_now()
     async with aiosqlite.connect(DB_NAME) as db:
