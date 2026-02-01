@@ -207,41 +207,45 @@ async def get_user_shifts_report(user_id: int, start_date: date, end_date: date)
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute(query, (user_id, start_date.isoformat(), end_date.isoformat())) as cursor:
             async for row in cursor:
-                s_date, s_t, e_t, mins, rate_str, r_name = row
+                s_date, s_t, e_t, mins, rate_str, r_name, entry_type = row
                 rate = Decimal(rate_str)
                 role_label = r_name if r_name else "???"
-                t_start_str = s_t.split('T')[-1][:5]
-                if e_t is None:
-                    # СМЕНА ОТКРЫТА ПРЯМО СЕЙЧАС
-                    start_dt = datetime.fromisoformat(s_t)
-                    # Если в базе время без TZ, приводим current_time к naive для расчета
-                    diff = current_time.replace(tzinfo=None) - start_dt.replace(tzinfo=None)
-                    live_mins = int(diff.total_seconds() // 60)
-                    if live_mins < 0: live_mins = 0
-
-                    earn = (Decimal(live_mins) * rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
-                    time_display = format_minutes_to_str(live_mins)
-
-                    # Добавляем в общие итоги (админ видит реальную картину)
-                    total_min += live_mins
-                    total_money += earn
-
-                    shifts_list.append(
-                        f"📅 {s_date} | {t_start_str} - 🟢 | {role_label}\n"
-                        f"      └ ⚡️ <b>В процессе:</b> {time_display} | {earn} RSD"
-                    )
+                if entry_type == 'manual':
+                    t_range = "[Корр.]"
+                elif e_t is None:
+                    # Если T в строке нет (мало ли), берем как есть, иначе режем время
+                    t_start = s_t.split('T')[-1][:5] if 'T' in s_t else s_t[:5]
+                    t_range = f"{t_start} - 🟢"
                 else:
-                    # СМЕНА ЗАКРЫТА
-                    earn = (Decimal(mins) * rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
-                    total_min += mins
-                    total_money += earn
-                    t_end_str = e_t.split('T')[-1][:5]
-                    time_display = format_minutes_to_str(mins)
+                    t_start = s_t.split('T')[-1][:5] if 'T' in s_t else s_t[:5]
+                    t_end = e_t.split('T')[-1][:5] if 'T' in e_t else e_t[:5]
+                    t_range = f"{t_start} - {t_end}"
 
-                    shifts_list.append(
-                        f"📅 {s_date} | {t_start_str} - {t_end_str} | {role_label}\n"
-                        f"      └ {time_display} | {earn} RSD"
-                    )
+                if e_t is None and entry_type != 'manual':
+                    # "Живой" расчет для открытой смены
+                    start_dt = datetime.fromisoformat(s_t).replace(tzinfo=None)
+                    now_naive = current_time.replace(tzinfo=None)
+                    diff = now_naive - start_dt
+                    display_mins = int(diff.total_seconds() // 60)
+                    if display_mins < 0: display_mins = 0
+                    time_label = "⚡️ <b>В процессе:</b>"
+                else:
+                    # Для закрытых и КОРРЕКТИРОВОК берем готовые минуты из базы
+                    display_mins = mins
+                    time_label = ""
+
+                earn = (Decimal(display_mins) * rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
+
+                # Суммируем только то, что влияет на итог
+                total_min += display_mins
+                total_money += earn
+
+                h_str = format_minutes_to_str(display_mins)
+
+                shifts_list.append(
+                    f"📅 {s_date} | {t_range} | {role_label}\n"
+                    f"      └ {time_label} {h_str} | {earn} RSD"
+                )
 
     return total_min, total_money, shifts_list
 
