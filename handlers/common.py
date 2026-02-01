@@ -14,6 +14,7 @@ from states import UserSetup
 
 router = Router()
 
+
 @router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext, config: BotConfig, i18n: I18nContext):
     await state.clear()
@@ -43,8 +44,9 @@ async def cmd_start(message: Message, state: FSMContext, config: BotConfig, i18n
         is_admin = user_id in config.admin_ids
         await message.answer(
             i18n.welcome(user_name=message.from_user.first_name),
-            reply_markup=kb.get_main_menu_keyboard(i18n, is_admin)
+            reply_markup=await kb.get_main_menu_keyboard(i18n, user_id, is_admin)
         )
+
 
 @router.message(MagicI18nFilter("button_help"))
 async def cmd_help(message: Message, i18n: I18nContext, config: BotConfig):
@@ -65,5 +67,5 @@ async def cmd_help(message: Message, i18n: I18nContext, config: BotConfig):
     is_admin = user_id in config.admin_ids
     await message.answer(
         help_text,
-        reply_markup=kb.get_main_menu_keyboard(i18n, is_admin)
+        reply_markup=await kb.get_main_menu_keyboard(i18n, user_id, is_admin)
     )

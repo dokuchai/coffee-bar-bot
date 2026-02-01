@@ -7,20 +7,13 @@ from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 import pytz
-# ---
-#❗️❗️❗️ CHANGE: Import Core and Manager types ❗️❗️❗️
-# ---
-from aiogram_i18n.cores import BaseCore
-from aiogram_i18n.managers import BaseManager
 
 from config import load_config, BotConfig
 from database import init_db
 from handlers import common, user_handlers, admin_handlers, group_handlers
 from middlewares.i18n import setup_i18n
-# ---
-#❗️❗️❗️ CHANGE: Import correct job function name if needed (should be remind_end_shift) ❗️❗️❗️
-# ---
-from scheduler.jobs import remind_end_shift
+
+from scheduler.jobs import cron_auto_close_shifts
 
 async def main():
     logging.basicConfig(
@@ -59,15 +52,13 @@ async def main():
     # --- Scheduler ---
     timezone = pytz.timezone('Europe/Belgrade')
     scheduler = AsyncIOScheduler(timezone=timezone)
+    # Добавляем задачу: каждый день в 20:30
     scheduler.add_job(
-        remind_end_shift,
+        cron_auto_close_shifts,
         trigger='cron',
-        hour="20",
-        minute="30",
-        # ---
-        #❗️❗️❗️ CHANGE: Pass core and manager instead of middleware ❗️❗️❗️
-        # ---
-        args=[bot, i18n_core, i18n_manager]
+        hour=20,
+        minute=30,
+        args=[bot]
     )
 
     # --- Start ---

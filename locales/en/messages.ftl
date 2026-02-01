@@ -3,7 +3,20 @@
 # --- General ---
 welcome = 👋 Hi, { $user_name }!
     I'm a bot for tracking coffee shop work hours.
-help_text = <b>Bot Commands:</b>
+admin_button_back = ⬅️ Back to menu
+button_start_shift = 🚀 Start Shift
+button_end_shift = 🏁 End Shift
+button_my_stats = 📊 Statistics
+button_admin_panel = ⚙️ Admin Panel
+
+button_help = 📖 Help
+
+help_text =
+    📖 <b>Command Help:</b>
+    🚀 <b>Start Shift:</b> Click when you start working (available from 08:30). The bot will record the exact start time.
+    🏁 <b>End Shift:</b> Click at the end of the day. The bot will calculate minutes worked and your earnings.
+    📊 <b>Statistics:</b> View detailed reports for the week or month.
+    ⏰ <i>Important:</i> If you forget to close your shift, it will close automatically at 20:30.
 
     <b>For everyone:</b>
     /start - Restart the bot and show the menu
@@ -22,9 +35,7 @@ menu_updated = Menu updated. # Can keep or remove if not used
 
 # --- Main Menu Buttons ---
 button_record_shift = 📝 Record Shift
-button_my_stats = My Statistics
-button_help = Help
-button_admin_panel = 👑 Admin Panel
+button_my_stats = 📊 Statistics
 input_placeholder = Choose an action
 
 # --- Role Setup (UserSetup) ---
@@ -150,3 +161,51 @@ adjust_error_negative_role_limit = 🚫 <b>Error!</b>
     Cannot subtract <b>{ $hours_to_add } h.</b> for the role "<b>{ $role_name }</b>".
     Current total for this role: { $current_hours } h.
     <b>The new total would be: { $new_total } h.</b> (cannot be < 0)
+
+# --- Adjustment Section (Admin) ---
+admin_select_user_adjust =
+    🛠 <b>Minute Adjustment</b>
+
+    Select an employee from the list below:
+
+adjust_select_role =
+    👤 Employee: <b>{user_name}</b>
+
+    Select the role to adjust the balance for:
+
+adjust_user_selected_single_role =
+    👤 Employee: <b>{user_name}</b>
+    🎭 Role: <b>{role_name}</b>
+
+    Enter the number of <b>minutes</b>.
+    Example: 60 to add an hour, -30 to remove half an hour.
+
+adjust_error_format =
+    ❌ <b>Error!</b>
+    Please enter a valid integer for minutes.
+
+adjust_success_with_role =
+    ✅ <b>Success!</b>
+    👤 Employee: {user_name}
+    🎭 Role: {role_name}
+    📅 Date: {date}
+    ⏱ Change: <b>{hours_str} min.</b>
+
+# --- Admin Panel Buttons (English) ---
+admin_panel_welcome =
+    🛠 <b>Admin Panel</b>
+    Select an action:
+
+admin_button_report_day = Today
+admin_button_report_week = This Week
+admin_button_report_month = This Month
+admin_button_report_prev_month = Last Month
+admin_button_manual_add = ✏️ Adjustment
+admin_button_delete_user = 🗑 Delete User
+
+shift_select_role = 🎭 <b>Select Role</b>
+    Please choose the role you are working in today:
+
+error_too_early = ⚠️ <b>Too early!</b>
+    The shift can only be started after <b>08:30 AM</b>.
+    Please wait a little longer.
