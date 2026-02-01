@@ -13,7 +13,8 @@ from database import init_db
 from handlers import common, user_handlers, admin_handlers, group_handlers
 from middlewares.i18n import setup_i18n
 
-from scheduler.jobs import cron_auto_close_shifts
+from scheduler.jobs import cron_auto_close_shifts, remind_end_shift
+
 
 async def main():
     logging.basicConfig(
@@ -52,13 +53,28 @@ async def main():
     # --- Scheduler ---
     timezone = pytz.timezone('Europe/Belgrade')
     scheduler = AsyncIOScheduler(timezone=timezone)
+    scheduler.add_job(
+        remind_end_shift,
+        trigger='cron',
+        hour=20,
+        minute=0,
+        kwargs={
+            "bot": bot,
+            "i18n_core": i18n_core,  # Передаем ядро
+            "i18n_manager": i18n_manager  # Передаем менеджер
+        }
+    )
     # Добавляем задачу: каждый день в 20:30
     scheduler.add_job(
         cron_auto_close_shifts,
         trigger='cron',
         hour=20,
         minute=30,
-        args=[bot]
+        kwargs={
+            "bot": bot,
+            "i18n_core": i18n_core,
+            "i18n_manager": i18n_manager
+        }
     )
 
     # --- Start ---
