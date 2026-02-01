@@ -217,7 +217,7 @@ async def get_user_shifts_report(user_id: int, start_date: date, end_date: date)
                 s_date, s_t, e_t, mins, rate_str, r_name, entry_type = row
                 rate = Decimal(rate_str)
                 role_label = r_name if r_name else "???"
-                if entry_type == 'manual':
+                if entry_type == 'manual' or str(s_t).startswith('manual'):
                     t_range = "[Корр.]"
                 elif e_t is None:
                     # Если T в строке нет (мало ли), берем как есть, иначе режем время
@@ -227,6 +227,10 @@ async def get_user_shifts_report(user_id: int, start_date: date, end_date: date)
                     t_start = s_t.split('T')[-1][:5] if 'T' in s_t else s_t[:5]
                     t_end = e_t.split('T')[-1][:5] if 'T' in e_t else e_t[:5]
                     t_range = f"{t_start} - {t_end}"
+                    if t_start == "manua":
+                        t_range = "[Корр.]"
+                    else:
+                        t_range = f"{t_start} - {t_end}"
 
                 if e_t is None and entry_type != 'manual':
                     # "Живой" расчет для открытой смены
@@ -341,12 +345,15 @@ async def get_month_hours_for_user(user_id: int, m_start: date) -> int:
 
 
 async def add_manual_adjustment(user_id: int, role_id: int, minutes: int):
+    now_iso = get_now().isoformat()
+    today_iso = get_today().isoformat()
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("SELECT rate FROM roles WHERE role_id = ?", (role_id,)) as rc:
             rate_str = (await rc.fetchone())[0]
-        await db.execute(
-            "INSERT INTO shifts (user_id, role_id, shift_date, start_time, end_time, minutes_worked, rate_at_time, entry_type) VALUES (?, ?, ?, 'manual', 'manual', ?, ?, 'manual_adjustment')",
-            (user_id, role_id, get_today().isoformat(), minutes, rate_str))
+        await db.execute("""
+            INSERT INTO shifts (user_id, role_id, shift_date, start_time, end_time, minutes_worked, rate_at_time, entry_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'manual')
+        """, (user_id, role_id, today_iso, now_iso, now_iso, minutes, rate_str))
         await db.commit()
 
 
