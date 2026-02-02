@@ -14,8 +14,4 @@ class MagicI18nFilter(Filter):
             return False
 
         translated_text = _(self.key)
-
-        # Печатаем в консоль для проверки
-        logging.info(f"DEBUG FILTER: На кнопке='{message.text}', Ждали='{translated_text}' (ключ: {self.key})")
-
         return message.text == translated_text
