@@ -14,8 +14,6 @@ import database as db
 async def remind_end_shift(bot: Bot, i18n_core: BaseCore, i18n_manager: BaseManager):
     logging.info("Scheduler: Checking started shifts for reminders.")
 
-    # Получаем список тех, у кого смена не закрыта
-    # Предполагаем, что функция возвращает [(user_id, role_id, start_time_str), ...]
     active_shifts = await db.get_users_with_active_shifts()
 
     if not active_shifts:
@@ -23,17 +21,12 @@ async def remind_end_shift(bot: Bot, i18n_core: BaseCore, i18n_manager: BaseMana
         return
 
     today_str = db.get_today().isoformat()
-
-    # Отбираем только тех, кто начал смену СЕГОДНЯ (чтобы не спамить старыми хвостами)
-    # Предполагаем, что start_time_str — это ISO строка "YYYY-MM-DDTHH:MM:SS"
     users_to_remind = [s[0] for s in active_shifts if s[2].startswith(today_str)]
 
     if not users_to_remind:
         logging.info("Scheduler: No shifts started TODAY found.")
         return
 
-    # Получаем текст напоминания (всегда используем локаль по умолчанию,
-    # так как в джобе нет контекста конкретного пользователя)
     try:
         reminder_text = i18n_core.get("reminder_end_shift", i18n_manager.default_locale)
     except Exception:
@@ -65,23 +58,18 @@ async def cron_auto_close_shifts(bot: Bot, i18n_core: BaseCore, i18n_manager: Ba
         logging.info("Scheduler: No shifts to auto-close.")
         return
 
-    # Устанавливаем время закрытия: сегодня, 20:30 (Белград)
-    # Используем replace(tzinfo=None), чтобы не было конфликта aware/naive при вычитании в БД
     now_serbia = db.get_now()
     closing_time = now_serbia.replace(hour=20, minute=30, second=0, microsecond=0, tzinfo=None)
 
     for (uid,) in users:
-        # Мы вызываем функцию закрытия, передавая ей жесткое время 20:30
-        # Обязательно убедись, что db.record_shift_end принимает аргумент end_dt
         result = await db.close_shift(uid, end_dt=closing_time)
         if result:
             mins, t_start, t_end = result
             time_display = db.format_minutes_to_str(mins)
 
-            # Текст для автоматического закрытия
             msg = (
                 f"⏰ <b>Ваша смена была автоматически закрыта!</b>\n"
-                f"Период: <code>{t_start}</code> — <code>20:30</code>\n"
+                f"Период: <code>{t_start}</code> — <code>{t_end}</code>\n"
                 f"Итог: <b>{time_display}</b>"
             )
             try:
