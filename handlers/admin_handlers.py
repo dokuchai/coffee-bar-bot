@@ -185,7 +185,7 @@ async def manual_add_user_selected(callback: CallbackQuery, state: FSMContext, _
         return
 
     if len(uroles) == 1:
-        rid, rn, _ = uroles[0]
+        rid, rn, unused = uroles[0]
         await state.update_data(role_id=rid, role_name=rn)
         await state.set_state(AdminManualAdd.waiting_for_hours)
         await callback.message.edit_text(_("adjust_user_selected_single_role", user_name=uname, role_name=rn))
