@@ -1,58 +1,58 @@
 # handlers/group_handlers.py
 from aiogram import Router, F
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardButton
 from aiogram.filters import CommandStart
-from aiogram_i18n import I18nContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardButton
+from typing import Callable, Any
 
 router = Router()
 
-# ❗️ Этот фильтр ловит ВСЕ сообщения в группах
-# (и 'group', и 'supergroup')
+# Этот фильтр ловит ВСЕ сообщения в группах
 router.message.filter(F.chat.type.in_({"group", "supergroup"}))
 
-
 @router.message(CommandStart())
-async def cmd_start_in_group(message: Message, i18n: I18nContext):
+async def cmd_start_in_group(message: Message, _: Callable):
     """
-    Этот хэндлер срабатывает на /start ТОЛЬКО в группах.
+    Срабатывает на /start ТОЛЬКО в группах.
     """
-    # Получаем базовую информацию о боте (чтобы создать ссылку)
     bot_info = await message.bot.get_me()
     bot_username = bot_info.username
 
-    # Создаем кнопку-ссылку, которая открывает ЛС с ботом
     builder = InlineKeyboardBuilder()
     builder.add(
         InlineKeyboardButton(
-            text=i18n.button_start_private(),  # ❗️ Новый ключ
+            text=_("button_start_private"),  # Используем функцию перевода
             url=f"https://t.me/{bot_username}?start=from_group"
         )
     )
 
     await message.reply(
-        i18n.group_welcome(user_name=message.from_user.first_name),
+        _("group_welcome", user_name=message.from_user.first_name),
         reply_markup=builder.as_markup()
     )
 
-
 @router.message()
-async def any_message_in_group(message: Message, i18n: I18nContext):
+async def any_message_in_group(message: Message, _: Callable, i18n: Any):
     """
-    Этот хэндлер ловит ЛЮБОЙ другой текст в группе
-    (например, "Записать смену") и вежливо напоминает
-    пользователю, что нужно делать.
+    Ловит нажатия кнопок (текстовые сообщения) в группе и отправляет в личку.
     """
+    if not message.text:
+        return
 
-    # ❗️ Важно: Не реагируем на все подряд,
-    # а только если кто-то пытается обратиться к боту по кнопке
-    if message.text in [
-        i18n.button_record_shift(locale="ru"),  # Проверяем рус. кнопку
-        i18n.button_record_shift(locale="en"),  # Проверяем англ. кнопку
-        i18n.button_my_stats(locale="ru"),
-        i18n.button_my_stats(locale="en"),
-        i18n.button_help(locale="ru"),
-        i18n.button_help(locale="en")
-    ]:
-        await message.reply(i18n.group_please_go_to_private())
+    # Список ключей кнопок, на которые бот должен реагировать в группе
+    button_keys = [
+        "button_start_shift",
+        "button_end_shift",
+        "button_my_stats",
+        "button_help"
+    ]
+
+    # Собираем все варианты текста кнопок на всех языках
+    forbidden_texts = []
+    for lang in ["ru", "sr", "en"]:
+        for key in button_keys:
+            forbidden_texts.append(i18n.get(key, locale=lang))
+
+    # Если текст сообщения совпадает с любой кнопкой на любом языке
+    if message.text in forbidden_texts:
+        await message.reply(_("group_please_go_to_private"))

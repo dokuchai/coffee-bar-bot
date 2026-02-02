@@ -84,6 +84,7 @@ shift_entry_manual = • { $date }: [Manual] ({ $hours } h.)
 shift_entry_adjustment = • { $date }: [Adj.] ({ $hours } h.)
 
 # --- Admin Panel ---
+admin_button_total_view = 📊 TOTAL (ALL)
 admin_panel_welcome = Welcome to the Admin Panel.
 admin_button_report_day = Report for Today
 admin_button_report_week = Weekly Report

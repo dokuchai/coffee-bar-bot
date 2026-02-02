@@ -1,7 +1,4 @@
-# locales/ru/messages.ftl (С ПОДЧЕРКИВАНИЯМИ!)
-
-# --- Общие ---
-welcome = 👋 Привет, { $user_name }!
+welcome = 👋 Привет, {$user_name}!
     Я бот для учета рабочего времени кофейни.
 
 admin_button_back = ⬅️ Назад в меню
@@ -89,6 +86,7 @@ shift_entry_manual = • { $date }: [Вручную] ({ $hours } ч.)
 shift_entry_adjustment = • { $date }: [Корр.] ({ $hours } ч.)
 
 # --- Админ-панель ---
+admin_button_total_view = 📊 ОБЩИЙ ИТОГ (ВСЕ)
 admin_panel_welcome = Добро пожаловать в Админ-панель.
 admin_button_report_day = Сегодня
 admin_button_report_week = Эта неделя

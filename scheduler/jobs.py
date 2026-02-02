@@ -6,12 +6,13 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError, TelegramNotFound
 from aiogram_i18n.cores import BaseCore
 from aiogram_i18n.managers import BaseManager
+from middlewares.locales_manager import i18n as i18n_obj
 
 import database as db
 
 
 # --- 1. Напоминание о завершении смены ---
-async def remind_end_shift(bot: Bot, i18n_core: BaseCore, i18n_manager: BaseManager):
+async def remind_end_shift(bot: Bot, i18n=i18n_obj):
     logging.info("Scheduler: Checking started shifts for reminders.")
 
     active_shifts = await db.get_users_with_active_shifts()
@@ -28,7 +29,7 @@ async def remind_end_shift(bot: Bot, i18n_core: BaseCore, i18n_manager: BaseMana
         return
 
     try:
-        reminder_text = i18n_core.get("reminder_end_shift", i18n_manager.default_locale)
+        reminder_text = i18n.get("reminder_end_shift", locale="ru")
     except Exception:
         reminder_text = "⏰ Напоминание! Пожалуйста, не забудьте завершить текущую смену."
 
@@ -46,7 +47,7 @@ async def remind_end_shift(bot: Bot, i18n_core: BaseCore, i18n_manager: BaseMana
 
 
 # --- 2. Автоматическое закрытие смен ---
-async def cron_auto_close_shifts(bot: Bot, i18n_core: BaseCore, i18n_manager: BaseManager):
+async def cron_auto_close_shifts(bot: Bot, i18n=i18n_obj):
     logging.info("Scheduler: Running auto-close for all active shifts.")
 
     # 1. Находим всех, у кого не закрыта смена

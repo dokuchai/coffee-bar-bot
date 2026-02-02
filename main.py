@@ -11,7 +11,8 @@ import pytz
 from config import load_config, BotConfig
 from database import init_db
 from handlers import common, user_handlers, admin_handlers, group_handlers
-from middlewares.i18n import setup_i18n
+from middlewares.simple_i18n import SimpleI18nMiddleware
+from middlewares.locales_manager import i18n as i18n_obj
 
 from scheduler.jobs import cron_auto_close_shifts, remind_end_shift
 
@@ -35,7 +36,8 @@ async def main():
     # ---
     #❗️❗️❗️ CHANGE: Get core and manager back from setup_i18n ❗️❗️❗️
     # ---
-    i18n_middleware, i18n_core, i18n_manager = setup_i18n(dp, DEFAULT_LOCALE)
+    # i18n_middleware, i18n_core, i18n_manager = setup_i18n(dp, DEFAULT_LOCALE)
+    dp.update.middleware(SimpleI18nMiddleware())
 
     # --- Pass config ---
     dp["config"] = config.bot
@@ -58,11 +60,7 @@ async def main():
         trigger='cron',
         hour=20,
         minute=0,
-        kwargs={
-            "bot": bot,
-            "i18n_core": i18n_core,  # Передаем ядро
-            "i18n_manager": i18n_manager  # Передаем менеджер
-        }
+        kwargs={"bot": bot, "i18n": i18n_obj}
     )
     # Добавляем задачу: каждый день в 20:30
     scheduler.add_job(
@@ -70,11 +68,7 @@ async def main():
         trigger='cron',
         hour=20,
         minute=30,
-        kwargs={
-            "bot": bot,
-            "i18n_core": i18n_core,
-            "i18n_manager": i18n_manager
-        }
+        kwargs={"bot": bot, "i18n": i18n_obj}
     )
 
     # --- Start ---
