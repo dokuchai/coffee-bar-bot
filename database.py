@@ -188,8 +188,8 @@ async def close_shift(user_id: int, end_dt: Optional[datetime] = None):
                 (now_iso, mins, user_id)
             )
             await db.commit()
-            t_start = start_dt.strftime("%H:%M")
-            t_end = now.strftime("%H:%M")
+            t_start = start_dt.strftime("%H:%M:%S")
+            t_end = now.strftime("%H:%M:%S")
             return mins, t_start, t_end
 
 

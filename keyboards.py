@@ -15,7 +15,7 @@ async def get_main_menu_keyboard(i18n, user_id, is_admin=False):
 
     if status == 'active':
         builder.button(text=i18n.button_end_shift())
-    elif status == 'none':
+    else:
         builder.button(text=i18n.button_start_shift())
 
     builder.button(text=i18n.button_my_stats())
