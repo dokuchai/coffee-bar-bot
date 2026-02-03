@@ -15,6 +15,32 @@ from middlewares.simple_i18n import SimpleI18nMiddleware
 from middlewares.locales_manager import i18n as i18n_obj
 
 from scheduler.jobs import cron_auto_close_shifts, remind_end_shift
+from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats, BotCommandScopeDefault
+
+
+async def set_commands(bot: Bot):
+    user_scope = BotCommandScopeAllPrivateChats()
+
+    await bot.delete_my_commands(scope=BotCommandScopeDefault())
+    await bot.delete_my_commands(scope=user_scope)
+
+    commands_ru = [
+        BotCommand(command="start", description="Главное меню 🏠"),
+        BotCommand(command="help", description="Справка и помощь 📖"),
+        BotCommand(command="lang", description="Сменить язык 🌍")
+    ]
+
+    commands_en = [
+        BotCommand(command="start", description="Main menu 🏠"),
+        BotCommand(command="help", description="Help & Info 📖"),
+        BotCommand(command="lang", description="Change language 🌍")
+    ]
+
+    await bot.set_my_commands(commands=commands_ru, scope=user_scope)
+    await bot.set_my_commands(commands=commands_ru, scope=user_scope, language_code="ru")
+    await bot.set_my_commands(commands=commands_en, scope=user_scope, language_code="en")
+    current_commands = await bot.get_my_commands(scope=user_scope)
+    logging.info(f"📊 API Telegram подтвердил установку команд: {current_commands}")
 
 
 async def main():
@@ -30,13 +56,6 @@ async def main():
     )
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
-
-    # --- Setup I18N ---
-    DEFAULT_LOCALE = "ru"
-    # ---
-    #❗️❗️❗️ CHANGE: Get core and manager back from setup_i18n ❗️❗️❗️
-    # ---
-    # i18n_middleware, i18n_core, i18n_manager = setup_i18n(dp, DEFAULT_LOCALE)
     dp.update.middleware(SimpleI18nMiddleware())
 
     # --- Pass config ---
@@ -73,6 +92,8 @@ async def main():
 
     # --- Start ---
     try:
+        await set_commands(bot)
+        print("🚀 Команды отправлены в Telegram")
         scheduler.start()
         logging.info("Scheduler started.")
         await bot.delete_webhook(drop_pending_updates=True)
@@ -80,6 +101,7 @@ async def main():
     finally:
         scheduler.shutdown()
         await bot.session.close()
+
 
 if __name__ == "__main__":
     try:

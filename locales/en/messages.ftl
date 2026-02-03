@@ -210,3 +210,10 @@ shift_select_role = 🎭 <b>Select Role</b>
 error_too_early = ⚠️ <b>Too early!</b>
     The shift can only be started after <b>08:30 AM</b>.
     Please wait a little longer.
+
+select_language_text = Select interface language:
+language_changed_text = ✅ Language changed successfully!
+
+menu_start = Main Menu 🏠
+menu_help = Help 📖
+menu_lang = Change Language 🌍

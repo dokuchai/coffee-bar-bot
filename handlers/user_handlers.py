@@ -155,7 +155,7 @@ async def handle_end(message: Message, _: Callable, config: BotConfig):
 @router.message(lambda m, _: m.text == _("button_my_stats"))
 async def show_stats_menu(message: Message, _: Callable):
     await message.answer(
-        "📅 За какой период показать статистику?",
+        _("stats_select_period"),
         reply_markup=kb.get_user_stats_keyboard(_)
     )
 

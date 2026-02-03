@@ -19,7 +19,6 @@ async def get_main_menu_keyboard(i18n: Callable, user_id: int, is_admin: bool = 
         builder.button(text=i18n("button_start_shift"))
 
     builder.button(text=i18n("button_my_stats"))
-    builder.button(text=i18n("button_help"))
 
     if is_admin:
         builder.button(text=i18n("button_admin_panel"))
@@ -107,5 +106,14 @@ def get_user_stats_keyboard(i18n: Callable):
     builder.row(
         InlineKeyboardButton(text=i18n("stats_button_week"), callback_data="usr_st:week"),
         InlineKeyboardButton(text=i18n("stats_button_month"), callback_data="usr_st:month")
+    )
+    return builder.as_markup()
+
+
+def get_language_keyboard():
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="🇷🇺 Русский", callback_data="set_lang:ru"),
+        InlineKeyboardButton(text="🇺🇸 English", callback_data="set_lang:en")
     )
     return builder.as_markup()

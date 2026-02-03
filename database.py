@@ -37,9 +37,18 @@ async def init_db():
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY, 
                 username TEXT, 
-                first_name TEXT
+                first_name TEXT,
+                locale TEXT DEFAULT 'ru'
             )
         ''')
+
+        try:
+            await db.execute("ALTER TABLE users ADD COLUMN locale TEXT DEFAULT 'ru'")
+            await db.commit()
+            print("✅ База данных обновлена: добавлена колонка locale")
+        except aiosqlite.OperationalError:
+            # Если колонка уже есть, SQLite выдаст ошибку, которую мы просто игнорируем
+            pass
 
         # 2. ТАБЛИЦА РОЛЕЙ
         await db.execute('''
@@ -437,3 +446,16 @@ async def get_users_with_active_shifts():
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute(query) as cursor:
             return await cursor.fetchall()
+
+
+async def set_user_locale(user_id: int, locale: str):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute("UPDATE users SET locale = ? WHERE user_id = ?", (locale, user_id))
+        await db.commit()
+
+
+async def get_user_locale(user_id: int):
+    async with aiosqlite.connect(DB_NAME) as db:
+        async with db.execute("SELECT locale FROM users WHERE user_id = ?", (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else None

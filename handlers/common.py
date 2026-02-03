@@ -1,7 +1,7 @@
 # handlers/common.py
-from aiogram import Router, F
-from aiogram.types import Message
-from aiogram.filters import CommandStart
+from aiogram import Bot, Router, F
+from aiogram.types import Message, CallbackQuery, BotCommand, BotCommandScopeChat
+from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from typing import Callable
 
@@ -49,6 +49,53 @@ async def cmd_start(message: Message, state: FSMContext, config: BotConfig, _: C
         )
 
 
+@router.message(Command("lang"))
+async def cmd_lang(message: Message, _: Callable):
+    await message.answer(
+        _("select_language_text"),
+        reply_markup=kb.get_language_keyboard()
+    )
+
+
+@router.callback_query(F.data.startswith("set_lang:"))
+async def set_user_language(callback: CallbackQuery, _: Callable, config: BotConfig, bot: Bot):
+    new_locale = callback.data.split(":")[1]
+    user_id = callback.from_user.id
+
+    # 1. Сохраняем в базу
+    await db.set_user_locale(user_id, new_locale)
+
+    # 2. Создаем временный переводчик для этого момента
+    from middlewares.locales_manager import i18n as i18n_obj
+    def _new(key, **kwargs):
+        return i18n_obj.get(key, locale=new_locale, **kwargs)
+
+    # 3. Обновляем синее меню команд ПЕРСОНАЛЬНО для этого юзера
+    # Теперь даже если у него TG на английском, а он выбрал сербский — меню будет на сербском
+    new_commands = [
+        BotCommand(command="start", description=_new("menu_start")),
+        BotCommand(command="help", description=_new("menu_help")),
+        BotCommand(command="lang", description=_new("menu_lang"))
+    ]
+    await bot.set_my_commands(
+        commands=new_commands,
+        scope=BotCommandScopeChat(chat_id=user_id)
+    )
+
+    # 4. Редактируем сообщение с кнопками выбора языка
+    await callback.message.edit_text(_new("language_changed_text"))
+
+    # 5. Присылаем новое приветствие с НОВОЙ клавиатурой (Reply Keyboard)
+    is_admin = user_id in config.admin_ids
+    await callback.message.answer(
+        _new("welcome", user_name=callback.from_user.first_name),
+        reply_markup=await kb.get_main_menu_keyboard(_new, user_id, is_admin)
+    )
+
+    await callback.answer()
+
+
+@router.message(Command("help"))
 @router.message(MagicI18nFilter("button_help"))
 async def cmd_help(message: Message, _: Callable, config: BotConfig):
     user_id = message.from_user.id
@@ -66,7 +113,7 @@ async def cmd_help(message: Message, _: Callable, config: BotConfig):
         "help_text",
         btn_start=_("button_start_shift"),
         btn_stats=_("button_my_stats"),
-        btn_help=_("button_help"),
+        btn_help="/help",
         btn_admin=_("button_admin_panel")
     )
 
