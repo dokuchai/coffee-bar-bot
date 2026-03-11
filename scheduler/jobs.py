@@ -4,8 +4,6 @@ from datetime import datetime, time
 import aiosqlite
 from aiogram import Bot
 from aiogram.exceptions import TelegramForbiddenError, TelegramNotFound
-from aiogram_i18n.cores import BaseCore
-from aiogram_i18n.managers import BaseManager
 from middlewares.locales_manager import i18n as i18n_obj
 
 import database as db

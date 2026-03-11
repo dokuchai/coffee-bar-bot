@@ -4,7 +4,6 @@ from datetime import date, datetime, timedelta
 from typing import Optional, List, Tuple, Dict
 from decimal import Decimal, ROUND_HALF_UP
 import pytz
-from datetime import datetime
 
 # Настраиваем часовой пояс
 TZ = pytz.timezone('Europe/Belgrade')
@@ -202,7 +201,6 @@ async def close_shift(user_id: int, end_dt: Optional[datetime] = None):
             return mins, t_start, t_end
 
 
-# --- ОТЧЕТЫ И СТАТИСТИКА ---
 def format_minutes_to_str(total_minutes: int) -> str:
     """Вспомогательная функция для красивого вывода времени (в т.ч. отрицательного)."""
     abs_mins = abs(total_minutes)
@@ -211,7 +209,6 @@ def format_minutes_to_str(total_minutes: int) -> str:
     return f"{sign}{h} ч. {m} м."
 
 
-# database.py
 
 async def get_user_shifts_report(user_id: int, start_date: date, end_date: date):
     query = """
@@ -245,11 +242,7 @@ async def get_user_shifts_report(user_id: int, start_date: date, end_date: date)
                 else:
                     t_start = s_t.split('T')[-1][:5] if 'T' in s_t else s_t[:5]
                     t_end = e_t.split('T')[-1][:5] if 'T' in e_t else e_t[:5]
-                    t_range = f"{t_start} - {t_end}"
-                    if t_start == "manua":
-                        t_range = "[Корр.]"
-                    else:
-                        t_range = f"{t_start} - {t_end}"
+                    t_range = "[Корр.]" if t_start == "manua" else f"{t_start} - {t_end}"
 
                 if e_t is None and entry_type != 'manual':
                     # "Живой" расчет для открытой смены
@@ -280,45 +273,7 @@ async def get_user_shifts_report(user_id: int, start_date: date, end_date: date)
     return total_min, total_money, shifts_list
 
 
-async def get_summary_report(start_date: date, end_date: date, entry_types: Optional[List[str]] = None):
-    """Сводный отчет для админа."""
-    query = """
-        SELECT u.first_name, r.name, SUM(s.minutes_worked), s.rate_at_time
-        FROM shifts s
-        JOIN users u ON s.user_id = u.user_id
-        LEFT JOIN roles r ON s.role_id = r.role_id
-        WHERE s.shift_date BETWEEN ? AND ? AND s.end_time IS NOT NULL
-    """
-    params = [start_date.isoformat(), end_date.isoformat()]
-    if entry_types:
-        query += f" AND s.entry_type IN ({','.join('?' * len(entry_types))})"
-        params.extend(entry_types)
-    query += " GROUP BY u.user_id, r.role_id"
-
-    summary = {}
-    async with aiosqlite.connect(DB_NAME) as db:
-        async with db.execute(query, params) as cursor:
-            async for row in cursor:
-                u_name, r_name, mins, rate_str = row
-                rate = Decimal(rate_str)
-                earn = (Decimal(mins) * rate).quantize(Decimal('0.01'), ROUND_HALF_UP)
-                if u_name not in summary:
-                    summary[u_name] = {'user_name': u_name, 'total_hours': 0, 'total_earnings': Decimal('0.00'),
-                                       'roles': {}}
-                summary[u_name]['total_hours'] += mins
-                summary[u_name]['total_earnings'] += earn
-                summary[u_name]['roles'][r_name] = {'hours': mins, 'earnings': earn}
-    return list(summary.values())
-
-
 # --- ВСПОМОГАТЕЛЬНЫЕ ---
-
-async def get_first_role_id(user_id: int) -> Optional[int]:
-    async with aiosqlite.connect(DB_NAME) as db:
-        async with db.execute("SELECT role_id FROM user_roles WHERE user_id = ? LIMIT 1", (user_id,)) as c:
-            row = await c.fetchone()
-            return row[0] if row else None
-
 
 async def get_user_roles(user_id: int):
     async with aiosqlite.connect(DB_NAME) as db:
@@ -352,6 +307,14 @@ async def add_or_update_user(user_id: int, username: str, first_name: str):
 async def get_all_users():
     async with aiosqlite.connect(DB_NAME) as db:
         async with db.execute("SELECT user_id, first_name FROM users") as c: return await c.fetchall()
+
+
+async def get_user_by_id(user_id: int) -> Optional[str]:
+    """Возвращает first_name пользователя по user_id."""
+    async with aiosqlite.connect(DB_NAME) as db:
+        async with db.execute("SELECT first_name FROM users WHERE user_id = ?", (user_id,)) as c:
+            row = await c.fetchone()
+            return row[0] if row else None
 
 
 async def get_month_hours_for_user(user_id: int, m_start: date) -> int:
@@ -392,8 +355,6 @@ async def check_user_has_roles(user_id: int) -> bool:
             res = await cursor.fetchone()
             return res is not None
 
-
-# database.py
 
 async def get_total_summary_report(start_date: date, end_date: date):
     """Возвращает общую сумму и время по всем сотрудникам за период."""

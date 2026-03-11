@@ -1,8 +1,7 @@
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
-from datetime import date, timedelta, datetime, time
-from aiogram_i18n import I18nContext
+from datetime import timedelta, time
 from typing import Callable
 
 from filters import MagicI18nFilter
@@ -118,8 +117,8 @@ async def process_role_choice(callback: CallbackQuery, _: Callable, config: BotC
         return
 
     await db.record_shift_start(user_id, role_id)
-    all_roles = await db.get_roles()
-    role_name = next((r[1] for r in all_roles if r[0] == role_id), "???")
+    user_roles = await db.get_user_roles(user_id)
+    role_name = next((r[1] for r in user_roles if r[0] == role_id), "???")
 
     is_admin = user_id in config.admin_ids
     reply_kb = await kb.get_main_menu_keyboard(_, user_id, is_admin)

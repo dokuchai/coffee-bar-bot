@@ -3,9 +3,18 @@ from aiogram import Router, F
 from aiogram.types import Message, InlineKeyboardButton
 from aiogram.filters import CommandStart
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from typing import Callable, Any
+from typing import Callable
+
+from middlewares.locales_manager import i18n as i18n_obj
 
 router = Router()
+
+_BUTTON_KEYS = ["button_start_shift", "button_end_shift", "button_my_stats", "button_help"]
+_BUTTON_TEXTS = frozenset(
+    i18n_obj.get(key, locale=lang)
+    for lang in ["ru", "sr", "en"]
+    for key in _BUTTON_KEYS
+)
 
 # Этот фильтр ловит ВСЕ сообщения в группах
 router.message.filter(F.chat.type.in_({"group", "supergroup"}))
@@ -32,27 +41,12 @@ async def cmd_start_in_group(message: Message, _: Callable):
     )
 
 @router.message()
-async def any_message_in_group(message: Message, _: Callable, i18n: Any):
+async def any_message_in_group(message: Message, _: Callable):
     """
     Ловит нажатия кнопок (текстовые сообщения) в группе и отправляет в личку.
     """
     if not message.text:
         return
 
-    # Список ключей кнопок, на которые бот должен реагировать в группе
-    button_keys = [
-        "button_start_shift",
-        "button_end_shift",
-        "button_my_stats",
-        "button_help"
-    ]
-
-    # Собираем все варианты текста кнопок на всех языках
-    forbidden_texts = []
-    for lang in ["ru", "sr", "en"]:
-        for key in button_keys:
-            forbidden_texts.append(i18n.get(key, locale=lang))
-
-    # Если текст сообщения совпадает с любой кнопкой на любом языке
-    if message.text in forbidden_texts:
+    if message.text in _BUTTON_TEXTS:
         await message.reply(_("group_please_go_to_private"))
