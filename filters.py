@@ -1,5 +1,4 @@
 # filters.py
-import logging
 from aiogram.filters import Filter
 from aiogram.types import Message
 from typing import Callable

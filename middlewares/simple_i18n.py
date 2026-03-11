@@ -1,5 +1,4 @@
 # middlewares/simple_i18n.py
-from aiogram import BaseMiddleware
 from .locales_manager import i18n as i18n_obj
 import database as db
 import logging
