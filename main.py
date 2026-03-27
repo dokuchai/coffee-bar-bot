@@ -92,10 +92,11 @@ async def main():
     # --- Start ---
     try:
         await set_commands(bot)
-        print("🚀 Команды отправлены в Telegram")
         scheduler.start()
         logging.info("Scheduler started.")
         await bot.delete_webhook(drop_pending_updates=True)
+        for admin_id in config.bot.admin_ids:
+            await bot.send_message(admin_id, "✅ Бот запущен")
         await dp.start_polling(bot)
     finally:
         scheduler.shutdown()
