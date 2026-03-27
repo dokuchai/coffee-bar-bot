@@ -1,5 +1,4 @@
 # middlewares/locales_manager.py
-import os
 from pathlib import Path
 from fluent.runtime import FluentResource, FluentBundle
 

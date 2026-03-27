@@ -36,7 +36,6 @@ async def set_commands(bot: Bot):
         BotCommand(command="lang", description="Change language 🌍")
     ]
 
-    await bot.set_my_commands(commands=commands_ru, scope=user_scope)
     await bot.set_my_commands(commands=commands_ru, scope=user_scope, language_code="ru")
     await bot.set_my_commands(commands=commands_en, scope=user_scope, language_code="en")
     current_commands = await bot.get_my_commands(scope=user_scope)

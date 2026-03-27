@@ -1,0 +1,31 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type 'deploy' to confirm"
+        required: true
+        default: ""
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # Safety check: only run if triggered manually with confirmation
+    if: github.event.inputs.confirm == 'deploy'
+
+    steps:
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          password: ${{ secrets.DEPLOY_PASSWORD }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          script: |
+            cd ${{ secrets.DEPLOY_PATH }}
+            git pull origin main
+            pip3 install -r requirements.txt
+            pkill -f main.py || true
+            nohup python3 main.py > coffee_bot.log 2>&1 &
+            disown

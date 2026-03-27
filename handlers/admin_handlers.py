@@ -4,7 +4,6 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from datetime import date, timedelta
 from typing import Callable
-from decimal import Decimal
 
 from filters import MagicI18nFilter
 import database as db
@@ -110,8 +109,7 @@ async def admin_report_detailed(callback: CallbackQuery, _: Callable):
 
     minutes, total_money, shifts = await db.get_user_shifts_report(uid, s_date, e_date)
 
-    all_users = await db.get_all_users()
-    user_name = next((n for i, n in all_users if i == uid), "Сотрудник")
+    user_name = await db.get_user_by_id(uid) or "Сотрудник"
 
     if not shifts:
         await callback.message.edit_text(
@@ -174,8 +172,7 @@ async def start_manual_add(callback: CallbackQuery, state: FSMContext, _: Callab
 @router.callback_query(AdminManualAdd.waiting_for_user, F.data.startswith("manual_user_"))
 async def manual_add_user_selected(callback: CallbackQuery, state: FSMContext, _: Callable):
     uid = int(callback.data.split("_")[-1])
-    all_u = await db.get_all_users()
-    uname = next((n for i, n in all_u if i == uid), "???")
+    uname = await db.get_user_by_id(uid) or "???"
     await state.update_data(user_id=uid, user_name=uname)
 
     uroles = await db.get_user_roles(uid)
@@ -257,8 +254,7 @@ async def select_user_to_delete(callback: CallbackQuery, state: FSMContext, _: C
         await state.clear()
         return
 
-    all_u = await db.get_all_users()
-    user_name = next((name for uid, name in all_u if uid == user_id_to_delete), "???")
+    user_name = await db.get_user_by_id(user_id_to_delete) or "???"
     await state.update_data(user_id=user_id_to_delete, user_name=user_name)
     await state.set_state(AdminDeleteUser.waiting_for_confirmation)
     await callback.message.edit_text(
