@@ -27,7 +27,6 @@ jobs:
             git pull origin main
             .venv/bin/pip install -r requirements.txt
             pkill -f main.py || true
-            nohup .venv/bin/python main.py > coffee_bot.log 2>&1 &
-            disown
+            nohup .venv/bin/python main.py > coffee_bot.log 2>&1 </dev/null &
             sleep 5
             pgrep -f main.py || (echo "=== Bot failed to start! Last logs: ===" && tail -30 coffee_bot.log && exit 1)
